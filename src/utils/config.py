@@ -11,8 +11,8 @@ def _require(key: str) -> str:
 
 SUPABASE_URL = _require("SUPABASE_URL")
 SUPABASE_KEY = _require("SUPABASE_KEY")
-ANTHROPIC_API_KEY = _require("ANTHROPIC_API_KEY")
-DISCORD_WEBHOOK_URL = _require("DISCORD_WEBHOOK_URL")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 
 X_API_KEY = os.getenv("X_API_KEY", "")
 X_API_SECRET = os.getenv("X_API_SECRET", "")

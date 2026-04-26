@@ -4,7 +4,7 @@ pandas==2.2.2
 numpy==1.26.4
 
 # データ取得
-yfinance==0.2.40
+yfinance>=0.2.54
 requests==2.32.3
 beautifulsoup4==4.12.3
 

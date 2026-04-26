@@ -18,7 +18,7 @@ def _fetch_price(ticker: str) -> float:
     data = yf.download(ticker, period="2d", interval="1d", progress=False)
     if data.empty:
         raise ValueError(f"価格データが取得できませんでした: {ticker}")
-    return float(data["Close"].iloc[-1])
+    return float(data["Close"].iloc[-1].iloc[0])
 
 
 def run() -> None:
