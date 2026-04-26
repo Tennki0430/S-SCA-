@@ -1,4 +1,8 @@
-"""Oracle Agent: Prophet で 14 日後の価格を予測して prediction_log に保存する。"""
+"""Oracle Agent: Prophet で 14 日後の価格を予測して prediction_log に保存する。
+
+外生変数として物流指標（BDI）と地政学リスク指標（VIX・Gold・Oil・DXY）を使用する。
+データが揃っている指標のみ自動で Prophet に注入する。
+"""
 
 import logging
 from datetime import date, timedelta
@@ -15,7 +19,10 @@ from src.models.prophet_wrapper import predict
 
 logger = logging.getLogger(__name__)
 
-MIN_ROWS = 30  # Prophet が最低限必要なデータ行数
+MIN_ROWS = 30
+
+# Prophet に外生変数として注入する指標シンボル
+REGRESSOR_SYMBOLS = ["BDI", "VIX", "Gold", "Oil", "DXY"]
 
 
 def _build_price_df(records: list[dict]) -> pd.DataFrame:
@@ -25,20 +32,26 @@ def _build_price_df(records: list[dict]) -> pd.DataFrame:
     return df.sort_values("ds").reset_index(drop=True)
 
 
-def _build_logistics_series(records: list[dict]) -> pd.Series:
+def _build_series(records: list[dict]) -> pd.Series:
     if not records:
         return pd.Series(dtype=float)
-    df = pd.DataFrame(records)[["timestamp", "logistics_index"]].dropna()
+    df = pd.DataFrame(records)[["timestamp", "price"]].dropna()
     df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
-    return df.set_index("ds")["logistics_index"]
+    return df.set_index("ds")["price"]
 
 
 def run() -> None:
     logger.info("=== Oracle Agent 開始 ===")
 
-    # BDI（物流指標）を一度だけ取得して全銘柄で共用する
-    bdi_records = fetch_market_data("BDI", days=90)
-    logistics_series = _build_logistics_series(bdi_records)
+    # 外生変数をまとめて取得（データがある指標だけ regressors に追加）
+    regressors: dict[str, pd.Series] = {}
+    for sym in REGRESSOR_SYMBOLS:
+        records = fetch_market_data(sym, days=90)
+        series = _build_series(records)
+        if not series.empty:
+            regressors[sym] = series
+
+    logger.info("利用可能な外生変数: %s", list(regressors.keys()))
 
     for symbol in SYMBOLS:
         try:
@@ -49,14 +62,12 @@ def run() -> None:
 
             df = _build_price_df(records)
             current_price = float(df["y"].iloc[-1])
-
-            # Self-Reflection で更新された最新パラメータを取得
             param_overrides = fetch_latest_params(symbol)
 
             predicted_price, used_params = predict(
                 df=df,
                 forecast_days=FORECAST_DAYS,
-                logistics_series=logistics_series if not logistics_series.empty else None,
+                regressors=regressors if regressors else None,
                 param_overrides=param_overrides,
             )
 

@@ -2,17 +2,16 @@
 
 oracle.py から呼ばれる。feedback_log の parameter_updates を受け取り、
 自律改善サイクルで更新されたパラメータを Prophet に反映する。
+複数の外生変数（物流・地政学リスク指標）を add_regressor() で注入できる。
 """
 
 import logging
-from datetime import date, timedelta
 
 import pandas as pd
 from prophet import Prophet
 
 logger = logging.getLogger(__name__)
 
-# Self-Reflection が調整できるパラメータと許容範囲
 PARAM_SCHEMA: dict[str, dict] = {
     "changepoint_prior_scale": {"default": 0.05,       "min": 0.001, "max": 0.5},
     "seasonality_prior_scale": {"default": 10.0,       "min": 0.1,   "max": 20.0},
@@ -22,7 +21,6 @@ PARAM_SCHEMA: dict[str, dict] = {
 
 
 def _resolve_params(overrides: dict) -> dict:
-    """overrides を PARAM_SCHEMA の範囲内に丸めて返す。範囲外は default に戻す。"""
     resolved = {}
     for key, schema in PARAM_SCHEMA.items():
         val = overrides.get(key, schema["default"])
@@ -50,38 +48,42 @@ def build_model(param_overrides: dict | None = None) -> Prophet:
 def predict(
     df: pd.DataFrame,
     forecast_days: int = 14,
-    logistics_series: pd.Series | None = None,
+    regressors: dict[str, pd.Series] | None = None,
     param_overrides: dict | None = None,
 ) -> tuple[float, dict]:
     """
     Args:
         df: 'ds'（日付）と 'y'（価格）を持つ DataFrame
         forecast_days: 予測ホライズン（日数）
-        logistics_series: BDI 等の外生変数（ds インデックスの Series）
+        regressors: 外生変数の辞書 {変数名: ds インデックスの Series}
+                    例: {"BDI": series, "VIX": series, "Gold": series}
         param_overrides: Self-Reflection から渡されるパラメータ上書き
 
     Returns:
         (predicted_price, used_params): 予測値と使用パラメータのタプル
     """
     model = build_model(param_overrides)
+    df = df.copy()
 
-    if logistics_series is not None:
-        model.add_regressor("logistics_index")
-        df = df.copy()
-        df["logistics_index"] = df["ds"].map(logistics_series)
-        df["logistics_index"].fillna(method="ffill", inplace=True)
+    active_regressors: dict[str, pd.Series] = {}
+    if regressors:
+        for name, series in regressors.items():
+            if series.empty:
+                continue
+            model.add_regressor(name)
+            df[name] = df["ds"].map(series).ffill().bfill()
+            active_regressors[name] = series
+            logger.info("外生変数を追加: %s (%d件)", name, len(series))
 
     model.fit(df)
 
     future = model.make_future_dataframe(periods=forecast_days)
-
-    if logistics_series is not None:
-        last_bdi = logistics_series.iloc[-1] if not logistics_series.empty else 0.0
-        future["logistics_index"] = future["ds"].map(logistics_series).fillna(last_bdi)
+    for name, series in active_regressors.items():
+        last_val = float(series.iloc[-1])
+        future[name] = future["ds"].map(series).fillna(last_val)
 
     forecast = model.predict(future)
-    target_row = forecast.iloc[-1]
-    predicted_price = float(target_row["yhat"])
+    predicted_price = float(forecast.iloc[-1]["yhat"])
 
     used_params = _resolve_params(param_overrides or {})
     return predicted_price, used_params

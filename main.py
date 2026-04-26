@@ -32,6 +32,9 @@ def run_pipeline() -> None:
     from src.agents import scout_logistics
     scout_logistics.run()
 
+    from src.agents import scout_geopolitical
+    scout_geopolitical.run()
+
     from src.agents import oracle
     oracle.run()
 
