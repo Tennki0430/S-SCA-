@@ -1,0 +1,23 @@
+# 予測エンジン
+prophet==1.1.5
+pandas==2.2.2
+numpy==1.26.4
+
+# データ取得
+yfinance==0.2.40
+requests==2.32.3
+beautifulsoup4==4.12.3
+
+# DB / 環境変数
+supabase==2.5.0
+python-dotenv==1.0.1
+
+# AI
+anthropic==0.28.0
+
+# SNS 投稿
+tweepy==4.14.0
+
+# テスト
+pytest==8.2.2
+pytest-mock==3.14.0
