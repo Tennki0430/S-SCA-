@@ -20,10 +20,14 @@ X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 
 # 予測対象銘柄とyfinanceティッカーの対応
+# ナフサ: yfinanceに直接先物なし → RBOB ガソリン先物(RB=F)で代替（価格連動）
+# リチウム: 先物なし → Global X リチウム ETF(LIT)で代替
 SYMBOLS: dict[str, str] = {
-    "Wheat":  "ZW=F",
-    "Corn":   "ZC=F",
-    "Copper": "HG=F",
+    "Wheat":   "ZW=F",   # シカゴ小麦先物
+    "Corn":    "ZC=F",   # シカゴコーン先物
+    "Naphtha": "RB=F",   # RBOBガソリン先物（ナフサ代替）
+    "Copper":  "HG=F",   # 銅先物
+    "Lithium": "LIT",    # Global X リチウム & バッテリーテックETF
 }
 
 # 予測ホライズン（日数）
