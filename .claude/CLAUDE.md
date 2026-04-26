@@ -103,10 +103,11 @@ cp .env.example .env
 # .env に実際の値を記入する
 
 # 個別エージェント手動実行
-python -m src.agents.scout_price        # 価格収集
-python -m src.agents.scout_logistics    # 物流指標収集
-python -m src.agents.oracle             # Prophet 予測
-python -m src.agents.merchant           # SNS / Discord 投稿
+python -m src.agents.scout_price        # 価格収集（小麦/とうもろこし/ナフサ/銅/リチウム）
+python -m src.agents.scout_logistics    # 物流指標収集（BDRY ETF）
+python -m src.agents.scout_geopolitical # 地政学リスク収集（VIX/Gold/Oil/DXY）
+python -m src.agents.oracle             # Prophet 予測（14日後）
+python -m src.agents.merchant           # Claude Haiku で投稿文生成・Discord投稿
 python -m src.agents.accuracy_monitor   # 予測精度照合
 python -m src.agents.self_reflection    # パラメータ自動調整
 
@@ -137,11 +138,14 @@ GitHub Actions (cron: 0 * * * *)
         │     Yahoo Finance API → market_data テーブルへ保存
         │
         ├─► Scout Agent (Logistics)
-        │     BDI スクレイピング → market_data テーブルへ保存
+        │     BDRY ETF（yfinance）→ market_data テーブルへ保存
+        │
+        ├─► Scout Agent (Geopolitical)
+        │     VIX・Gold・Oil・DXY（yfinance）→ market_data テーブルへ保存
         │
         ├─► Oracle Agent
         │     Prophet で 14 日後価格を予測
-        │     ※ 物流データを add_regressor() で外生変数注入
+        │     ※ BDI + VIX + Gold + Oil + DXY を add_regressor() で外生変数注入
         │     → prediction_log テーブルへ保存
         │
         ├─► Merchant Agent
@@ -168,9 +172,10 @@ S-SCA/
 │       └── agents.yml            # hourly cron ワークフロー
 ├── src/
 │   ├── agents/
-│   │   ├── scout_price.py        # 価格収集（Yahoo Finance）
-│   │   ├── scout_logistics.py    # 物流指標収集（BDI スクレイピング）
-│   │   ├── oracle.py             # Prophet 予測エンジン
+│   │   ├── scout_price.py        # 価格収集（小麦/とうもろこし/ナフサ/銅/リチウム）
+│   │   ├── scout_logistics.py    # 物流指標収集（BDRY ETF / yfinance）
+│   │   ├── scout_geopolitical.py # 地政学リスク収集（VIX/Gold/Oil/DXY）
+│   │   ├── oracle.py             # Prophet 予測エンジン（複数外生変数対応）
 │   │   ├── merchant.py           # Claude API + SNS 投稿
 │   │   ├── accuracy_monitor.py   # 予測精度照合
 │   │   └── self_reflection.py    # Prophet パラメータ自動調整

@@ -1,3 +1,4 @@
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -29,10 +30,11 @@ python main.py
 ## エージェント個別実行
 
 ```bash
-python -m src.agents.scout_price        # 価格収集
-python -m src.agents.scout_logistics    # 物流指標収集
-python -m src.agents.oracle             # Prophet 予測
-python -m src.agents.merchant           # SNS / Discord 投稿
+python -m src.agents.scout_price        # 価格収集（小麦/とうもろこし/ナフサ/銅/リチウム）
+python -m src.agents.scout_logistics    # 物流指標収集（BDRY ETF）
+python -m src.agents.scout_geopolitical # 地政学リスク収集（VIX/Gold/Oil/DXY）
+python -m src.agents.oracle             # Prophet 予測（14日後）
+python -m src.agents.merchant           # Claude Haiku で投稿文生成・Discord投稿
 python -m src.agents.accuracy_monitor   # 予測精度照合
 python -m src.agents.self_reflection    # パラメータ自動調整
 ```

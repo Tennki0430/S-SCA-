@@ -1,6 +1,6 @@
 ---
 name: scout_logistics
-description: BDI（バルチック海運指数）を Investing.com からスクレイピングして market_data テーブルに保存する。物流データ収集に関する作業・デバッグを依頼されたときに使用する。
+description: BDRY ETF（BDI代替）を yfinance で取得して market_data テーブルに保存する。物流データ収集に関する作業・デバッグを依頼されたときに使用する。
 tools:
   - Read
   - Edit
@@ -14,14 +14,13 @@ tools:
 
 ## 責務
 
-- Investing.com から BDI の直近値をスクレイピングする
+- BDRY ETF（Breakwave Dry Bulk Shipping ETF）を yfinance で取得する
 - 取得した値を `symbol="BDI"` として `market_data` テーブルに保存する
 - BDI は Oracle Agent の Prophet regressor として使われるため、欠損を最小化する
 
-## スクレイピング先
+## なぜ BDRY を使うか
 
-- URL: `https://www.investing.com/indices/baltic-dry-overview`
-- セレクタ: `[data-test='instrument-price-last']`（変更時は class 名で再探索）
+Investing.com の BDI ページは GitHub Actions のクラウド IP をブロック（403エラー）するため、BDI 先物に連動する BDRY ETF（yfinance: `BDRY`）を代替として使用している。
 
 ## 動作確認コマンド
 
@@ -31,6 +30,5 @@ python -m src.agents.scout_logistics
 
 ## 注意事項
 
-- `User-Agent` ヘッダーを必ず付ける（ないと 403 が返る）
-- サイト構造が変わりセレクタが取れなくなったら `ValueError` を raise する（サイレント失敗させない）
-- スクレイピングが壊れた場合の代替手段: `nasdaq-data-link` ライブラリ（コード: `CHRIS/CBOE_BDI`）
+- スクレイピング不要。yfinance だけで動作する
+- BDRY は BDI 先物連動 ETF のため、BDI との乖離はほぼない
