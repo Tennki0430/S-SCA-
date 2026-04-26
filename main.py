@@ -19,6 +19,11 @@ logger = logging.getLogger("main")
 def run_pipeline() -> None:
     logger.info("========== S-SCA パイプライン 開始 ==========")
 
+    # Supabase pause 防止（他のエージェントが全て失敗しても必ず実行）
+    from src.utils.database import keepalive
+    keepalive()
+    logger.info("Keepalive 完了")
+
     # --- Phase 1 ---
     from src.agents import scout_price
     scout_price.run()

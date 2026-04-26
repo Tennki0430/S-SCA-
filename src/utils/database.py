@@ -12,6 +12,20 @@ def get_client() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+def keepalive() -> None:
+    """Supabase の無料枠を停止させないための定期 write。
+    market_data に symbol='_keepalive' で1件 INSERT してすぐ DELETE する。
+    """
+    client = get_client()
+    result = client.table("market_data").insert({
+        "symbol": "_keepalive",
+        "price": 0,
+        "source": "keepalive",
+    }).execute()
+    row_id = result.data[0]["id"]
+    client.table("market_data").delete().eq("id", row_id).execute()
+
+
 # ---------------------------------------------------------------------------
 # market_data
 # ---------------------------------------------------------------------------
