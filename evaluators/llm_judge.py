@@ -24,11 +24,18 @@ class LLMJudge:
     def __init__(self) -> None:
         self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
-    def analyze(self, result: EvaluationResult, current_params: dict) -> dict:
-        """誤差情報を Claude に渡し、改善パラメータを dict で返す。不要なら空 dict。"""
+    def analyze(
+        self, result: EvaluationResult, current_params: dict
+    ) -> tuple[str, dict]:
+        """誤差情報を Claude に渡し、(原因分析テキスト, 改善パラメータ dict) を返す。
+
+        Returns:
+            reasoning: Claude による誤差原因の説明文
+            param_updates: 変更すべきパラメータ dict（変更不要なら空 dict）
+        """
         if result.error_rate < REFLECTION_THRESHOLD_PCT:
             logger.info("[%s] 誤差 %.2f%% は閾値未満。調整不要。", result.symbol, result.error_rate)
-            return {}
+            return "", {}
 
         schema_summary = {
             k: {
@@ -44,16 +51,26 @@ class LLMJudge:
 
         message = self.client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=256,
+            max_tokens=512,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = message.content[0].text.strip()
 
         try:
-            return json.loads(raw)
+            parsed = json.loads(raw)
         except json.JSONDecodeError:
             start, end = raw.find("{"), raw.rfind("}") + 1
             if start != -1 and end > start:
-                return json.loads(raw[start:end])
-            logger.warning("[%s] Claude の返答を JSON として解析できませんでした: %s", result.symbol, raw)
-            return {}
+                try:
+                    parsed = json.loads(raw[start:end])
+                except json.JSONDecodeError:
+                    logger.warning("[%s] JSON 解析失敗: %s", result.symbol, raw)
+                    return raw, {}
+            else:
+                logger.warning("[%s] JSON 解析失敗: %s", result.symbol, raw)
+                return raw, {}
+
+        reasoning = parsed.get("reasoning", "")
+        param_updates = parsed.get("parameter_updates", {})
+        logger.info("[%s] 原因: %s", result.symbol, reasoning)
+        return reasoning, param_updates

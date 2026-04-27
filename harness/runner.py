@@ -54,13 +54,12 @@ class PipelineRunner:
         for result in results:
             if not result.passed:
                 current_params = fetch_latest_params(result.symbol)
-                param_updates = self.llm_judge.analyze(result, current_params)
-                if param_updates:
-                    notes = f"誤差 {result.error_rate:.2f}% → パラメータ更新: {param_updates}"
+                reasoning, param_updates = self.llm_judge.analyze(result, current_params)
+                if reasoning or param_updates:
                     self.reporter.save_llm_notes(
-                        result.symbol, result.error_rate, notes, param_updates
+                        result.symbol, result.error_rate, reasoning, param_updates
                     )
-                    logger.info("[%s] パラメータ更新保存: %s", result.symbol, param_updates)
+                    logger.info("[%s] 原因分析・パラメータ更新を保存", result.symbol)
         logger.info("=== LLM Judge 完了 ===")
 
         logger.info("========== S-SCA パイプライン 完了 ==========")
