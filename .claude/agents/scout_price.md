@@ -1,6 +1,6 @@
 ---
 name: scout_price
-description: Yahoo Finance から Wheat/Corn/Copper の先物価格を取得し market_data テーブルに保存する。価格収集に関する作業・デバッグ・修正を依頼されたときに使用する。
+description: Yahoo Finance から Wheat/Corn/Naphtha/Copper/Lithium の先物価格を取得し market_data テーブルに保存する。価格収集に関する作業・デバッグ・修正を依頼されたときに使用する。
 tools:
   - Read
   - Edit
@@ -14,7 +14,7 @@ tools:
 
 ## 責務
 
-- `yfinance` を使って SYMBOLS（Wheat/Corn/Copper）の直近終値を取得する
+- `yfinance` を使って SYMBOLS（Wheat/Corn/Naphtha/Copper/Lithium）の直近終値を取得する
 - 取得した価格を `market_data` テーブルに `insert_market_data()` で保存する
 - 取得失敗時は該当銘柄をスキップし、残りの銘柄の処理を続ける（パイプライン全体を止めない）
 
@@ -22,9 +22,11 @@ tools:
 
 ```python
 SYMBOLS = {
-    "Wheat":  "ZW=F",
-    "Corn":   "ZC=F",
-    "Copper": "HG=F",
+    "Wheat":   "ZW=F",  # シカゴ小麦先物
+    "Corn":    "ZC=F",  # シカゴコーン先物
+    "Naphtha": "RB=F",  # RBOB ガソリン先物（ナフサ代替）
+    "Copper":  "HG=F",  # 銅先物
+    "Lithium": "LIT",   # リチウム ETF
 }
 ```
 
