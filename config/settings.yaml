@@ -1,0 +1,30 @@
+# S-SCA システム設定
+# ここを変えるだけでモデル・パラメータ・銘柄を切り替えられる
+
+model:
+  name: claude-haiku-4-5-20251001   # コスト最小化のため Haiku 固定
+  max_tokens_analysis: 512           # Merchant の投稿文生成
+  max_tokens_reflection: 256         # LLM Judge のパラメータ提案
+
+pipeline:
+  forecast_days: 14                  # 予測ホライズン（日数）
+  min_data_rows: 30                  # Oracle が動くための最低データ件数
+  alert_threshold_pct: 10.0          # この変動率(%)以上でDiscord通知
+  reflection_threshold_pct: 5.0      # この誤差率(%)以上でパラメータ調整
+
+symbols:                             # 予測対象銘柄 → yfinance ティッカー
+  Wheat: ZW=F
+  Corn: ZC=F
+  Naphtha: RB=F
+  Copper: HG=F
+  Lithium: LIT
+
+regressors:                          # Prophet に渡す外生変数
+  - BDI    # 物流コスト（BDRY ETF）
+  - VIX    # 恐怖指数
+  - Gold   # 金先物
+  - Oil    # 原油先物
+  - DXY    # ドル指数
+
+supabase:
+  retention_days: 90                 # market_data の保持期間
