@@ -1,42 +1,49 @@
 # Sentient Supply-Chain Agent (S-SCA)
 
-世界の物流遅延を先行指標として、レアメタル・穀物の **14日後の価格を予測** し、仕入れアラートをDiscord / X に自律投稿するAIエージェント・システム。
+世界の物流遅延・地政学リスクを先行指標として、レアメタル・穀物の **14日後の価格を予測** し、仕入れアラートを Discord / X に自律投稿する AI エージェント・システム。
 
 ---
 
 ## 概要
 
 ```
-物流データ（BDI）+ 価格データ → Prophet 予測 → Claude が文章化 → Discord / X に自動投稿
-                                                        ↑
-                                          予測誤差を自己分析してパラメータを自動改善
+物流データ（BDRY ETF）
+地政学リスク（VIX / Gold / Oil / DXY）  →  Prophet 予測  →  Claude が文章化  →  Discord / X に自動投稿
+価格データ（Wheat / Corn / Naphtha / Copper / Lithium）         ↑
+                                                  予測誤差を自己分析してパラメータを自動改善
 ```
 
 24時間放置しても GitHub Actions が毎時自動実行し、予測・投稿・自己改善を繰り返す。
 
 ---
 
-## エージェント構成
+## エージェント構成（PDCA）
 
-| エージェント | 役割 |
-|---|---|
-| `scout_price` | Yahoo Finance から Wheat / Corn / Copper の先物価格を取得 |
-| `scout_logistics` | BDI（バルチック海運指数）をスクレイピング |
-| `oracle` | Prophet + BDI regressor で14日後の価格を予測 |
-| `merchant` | Claude Haiku で予測理由を文章化 → Discord / X に投稿 |
-| `accuracy_monitor` | 14日前の予測 vs 実績を照合して誤差率を記録 |
-| `self_reflection` | 誤差を Claude Haiku に分析させ Prophet パラメータを自動更新 |
+| フェーズ | エージェント | 役割 |
+|----------|-------------|------|
+| 前処理 | `scout_price` | Yahoo Finance から Wheat / Corn / Naphtha / Copper / Lithium の先物価格を取得 |
+| 前処理 | `scout_logistics` | BDRY ETF（yfinance）から物流指標（BDI プロキシ）を取得 |
+| 前処理 | `scout_geopolitical` | VIX / Gold / Oil / DXY（yfinance）から地政学リスクを取得 |
+| P（Plan） | `oracle` | Prophet + 外生変数 5 本で14日後の価格を予測 |
+| D（Do） | `merchant` | Claude Haiku で予測理由を文章化 → Discord / X に投稿 |
+| C（Check） | `evaluators/accuracy` | 14日前の予測 vs 実績を MAPE で採点 |
+| A（Act） | `evaluators/llm_judge` | 誤差を Claude Haiku に分析させ Prophet パラメータを自動更新 |
+
+全体の流れは **`harness/runner.py`**（PipelineRunner）が管理する。
 
 ---
 
 ## Tech Stack
 
-- **Python 3.11+**
-- **Prophet** — 時系列予測（物流指標を外生変数として注入）
-- **Supabase** — PostgreSQL データベース（無料枠）
-- **GitHub Actions** — 毎時自動実行（無料枠）
-- **Claude API（Haiku）** — 予測文章生成・誤差分析（コスト最小化）
-- **Discord Webhook / X API** — アラート通知（無料枠）
+| Layer | 技術 | 理由 |
+|-------|------|------|
+| 言語 | Python 3.11+ | Prophet / pandas エコシステム |
+| 予測 | Prophet（Meta） | 外生変数 regressor 対応、ローカル計算でコストゼロ |
+| データ取得 | yfinance | 価格・物流・地政学リスクをまとめて取得 |
+| DB | Supabase（PostgreSQL） | 無料枠、REST API 完備 |
+| 自動実行 | GitHub Actions | 毎時 cron、無料枠 |
+| AI | Claude Haiku | 投稿文生成・誤差分析の 2 箇所のみ（コスト最小化） |
+| 通知 | Discord Webhook / X API | 無料枠範囲内 |
 
 ---
 
@@ -58,7 +65,7 @@ cp .env.example .env
 ```
 
 | 変数名 | 取得先 |
-|---|---|
+|--------|--------|
 | `SUPABASE_URL` / `SUPABASE_KEY` | Supabase ダッシュボード → Settings → API |
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com |
 | `DISCORD_WEBHOOK_URL` | Discord サーバー設定 → 連携サービス → ウェブフック |
@@ -80,6 +87,18 @@ python main.py
 
 ---
 
+## エージェント個別実行
+
+```bash
+python -m src.agents.scout_price        # 価格収集
+python -m src.agents.scout_logistics    # 物流指標収集
+python -m src.agents.scout_geopolitical # 地政学リスク収集
+python -m src.agents.oracle             # Prophet 予測
+python -m src.agents.merchant           # Discord / X 投稿
+```
+
+---
+
 ## GitHub Actions による自動実行
 
 `.github/workflows/agents.yml` に設定済み。GitHub Secrets に環境変数を登録するだけで毎時自動実行される。
@@ -88,19 +107,17 @@ python main.py
 
 ---
 
-## 自律改善ループ
+## 自律改善ループ（C → A）
 
 ```
-accuracy_monitor が誤差率を記録
+evaluators/accuracy が MAPE を採点
+        ↓（10% 超で FAIL）
+evaluators/llm_judge が Claude に誤差原因を分析させる
         ↓
-self_reflection が Claude に分析させる
-        ↓
-改善パラメータを DB に保存
+改善パラメータを feedback_log（DB）に保存
         ↓
 翌日の oracle が新パラメータで予測
 ```
-
-14日ごとに予測精度が自動改善されていく。
 
 ---
 
@@ -108,17 +125,32 @@ self_reflection が Claude に分析させる
 
 ```
 S-SCA/
-├── main.py                  # パイプライン起動口
-├── init_db.py               # DB 初期化（初回のみ）
+├── main.py                      # エントリポイント（PipelineRunner を呼ぶだけ）
+├── init_db.py                   # DB 初期化（初回のみ）
 ├── requirements.txt
-├── .env.example
-├── .github/workflows/       # GitHub Actions 設定
+├── config/
+│   └── settings.yaml            # 銘柄・モデル・閾値（コードを触らず変更可）
+├── .github/workflows/
+│   └── agents.yml               # hourly cron ワークフロー
+├── agents/                      # エージェント共通コンポーネント
+│   ├── skills/                  # 能力（Discord 通知・Claude API 呼び出し）
+│   ├── rules/                   # 制約ポリシー（コスト・データ品質）
+│   ├── hooks/                   # イベントハンドラ（評価失敗・予測完了）
+│   └── prompts/                 # Claude へのプロンプト関数
 ├── src/
-│   ├── agents/              # 各エージェント
-│   ├── models/              # Prophet ラッパー
-│   └── utils/               # DB・設定・リトライ共通処理
-├── tests/                   # ユニットテスト
-└── .claude/                 # Claude Code 用プロジェクト設定
+│   ├── agents/                  # エージェント本体（scout × 3・oracle・merchant）
+│   ├── models/                  # Prophet ラッパー
+│   └── utils/                   # DB・設定・リトライ共通処理
+├── evaluators/                  # C（Check）: 採点ロジック
+│   ├── base.py                  # BaseEvaluator / EvaluationResult
+│   ├── accuracy.py              # MAPE 採点
+│   └── llm_judge.py             # Claude によるパラメータ改善提案
+├── harness/                     # パイプライン管理
+│   ├── runner.py                # PDCA オーケストレーター
+│   ├── reporter.py              # 評価結果の保存
+│   └── dataloader.py            # Supabase データ取得
+├── tests/                       # ユニットテスト
+└── .claude/                     # Claude Code 用プロジェクト設定
 ```
 
 ---
@@ -127,4 +159,5 @@ S-SCA/
 
 ```bash
 pytest tests/ -v
+pytest tests/test_oracle.py -v   # 単一ファイル
 ```
