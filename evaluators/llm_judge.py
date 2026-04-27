@@ -10,6 +10,7 @@ import logging
 import anthropic
 
 from src.utils.config import ANTHROPIC_API_KEY
+from src.utils.database import fetch_recent_news
 from src.models.prophet_wrapper import PARAM_SCHEMA
 from evaluators.base import EvaluationResult
 from agents.prompts.reflection import build_reflection_prompt
@@ -36,7 +37,10 @@ class LLMJudge:
             }
             for k, v in PARAM_SCHEMA.items()
         }
-        prompt = build_reflection_prompt(result.symbol, result.error_rate, schema_summary)
+        news_headlines = fetch_recent_news(result.symbol, limit=5)
+        prompt = build_reflection_prompt(
+            result.symbol, result.error_rate, schema_summary, news_headlines
+        )
 
         message = self.client.messages.create(
             model="claude-haiku-4-5-20251001",

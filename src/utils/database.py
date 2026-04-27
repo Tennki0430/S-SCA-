@@ -134,3 +134,41 @@ def fetch_latest_params(symbol: str) -> dict:
     if result.data and result.data[0]["parameter_updates"]:
         return result.data[0]["parameter_updates"]
     return {}
+
+
+# ---------------------------------------------------------------------------
+# news_log
+# ---------------------------------------------------------------------------
+
+def insert_news(
+    symbol: str,
+    headline: str,
+    source: str | None = None,
+    published_at: str | None = None,
+) -> dict[str, Any]:
+    client = get_client()
+    row = {
+        "symbol": symbol,
+        "headline": headline,
+        "source": source,
+        "published_at": published_at,
+    }
+    result = client.table("news_log").insert(row).execute()
+    return result.data[0]
+
+
+def fetch_recent_news(symbol: str, limit: int = 5) -> list[str]:
+    """直近のニュースヘッドラインを返す（LLM Judge のプロンプト用）。"""
+    client = get_client()
+    result = (
+        client.table("news_log")
+        .select("headline, source")
+        .eq("symbol", symbol)
+        .order("timestamp", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return [
+        f"{row['headline']}（{row['source']}）" if row.get("source") else row["headline"]
+        for row in result.data
+    ]

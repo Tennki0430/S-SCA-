@@ -30,10 +30,11 @@ class PipelineRunner:
         logger.info("Keepalive 完了")
 
         # --- データ収集 ---
-        from src.agents import scout_price, scout_logistics, scout_geopolitical
+        from src.agents import scout_price, scout_logistics, scout_geopolitical, scout_news
         scout_price.run()
         scout_logistics.run()
         scout_geopolitical.run()
+        scout_news.run()
 
         # --- P: Plan（予測） ---
         from src.agents import oracle
