@@ -24,10 +24,11 @@
 | 前処理 | `scout_price` | Yahoo Finance から Wheat / Corn / Naphtha / Copper / Lithium の先物価格を取得 |
 | 前処理 | `scout_logistics` | BDRY ETF（yfinance）から物流指標（BDI プロキシ）を取得 |
 | 前処理 | `scout_geopolitical` | VIX / Gold / Oil / DXY（yfinance）から地政学リスクを取得 |
+| 前処理 | `scout_news` | yfinance から各銘柄の最新ニュースを取得し news_log に保存 |
 | P（Plan） | `oracle` | Prophet + 外生変数 5 本で14日後の価格を予測 |
 | D（Do） | `merchant` | Claude Haiku で予測理由を文章化 → Discord / X に投稿 |
 | C（Check） | `evaluators/accuracy` | 14日前の予測 vs 実績を MAPE で採点 |
-| A（Act） | `evaluators/llm_judge` | 誤差を Claude Haiku に分析させ Prophet パラメータを自動更新 |
+| A（Act） | `evaluators/llm_judge` | 誤差原因をニュース文脈付きで Claude Haiku に分析させ、結果を Supabase に保存 |
 
 全体の流れは **`harness/runner.py`**（PipelineRunner）が管理する。
 
@@ -112,9 +113,11 @@ python -m src.agents.merchant           # Discord / X 投稿
 ```
 evaluators/accuracy が MAPE を採点
         ↓（10% 超で FAIL）
-evaluators/llm_judge が Claude に誤差原因を分析させる
+evaluators/llm_judge が news_log のニュースを取得
         ↓
-改善パラメータを feedback_log（DB）に保存
+Claude に「誤差原因の説明文 + 改善パラメータ」を構造化 JSON で生成させる
+        ↓
+feedback_log に原因分析テキストとパラメータ更新を保存
         ↓
 翌日の oracle が新パラメータで予測
 ```
@@ -138,7 +141,7 @@ S-SCA/
 │   ├── hooks/                   # イベントハンドラ（評価失敗・予測完了）
 │   └── prompts/                 # Claude へのプロンプト関数
 ├── src/
-│   ├── agents/                  # エージェント本体（scout × 3・oracle・merchant）
+│   ├── agents/                  # エージェント本体（scout × 4・oracle・merchant）
 │   ├── models/                  # Prophet ラッパー
 │   └── utils/                   # DB・設定・リトライ共通処理
 ├── evaluators/                  # C（Check）: 採点ロジック
