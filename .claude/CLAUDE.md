@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Notification | Discord Webhook + X API | 無料枠範囲内 |
 | AI Reasoning | Claude API (`anthropic` SDK) | 文章生成・誤差分析のみに限定してコスト抑制 |
 
-**コスト方針**: Claude API 呼び出しは `merchant`・`self_reflection` の 2 箇所のみ。予測本体は Prophet で完結させトークンコストを最小化する。
+**コスト方針**: Claude API 呼び出しは `merchant`（投稿文生成）・`evaluators/llm_judge.py`（誤差分析）の 2 箇所のみ。予測本体は Prophet で完結させトークンコストを最小化する。
 
 ---
 
@@ -47,7 +47,7 @@ cp .env.example .env
 
 ---
 
-## requirements.txt（雛形）
+## requirements.txt（現行）
 
 ```
 # 予測エンジン
@@ -56,16 +56,16 @@ pandas==2.2.2
 numpy==1.26.4
 
 # データ取得
-yfinance==0.2.40
-requests==2.32.3
-beautifulsoup4==4.12.3
+yfinance>=0.2.54
+requests>=2.32.0
 
 # DB / 環境変数
-supabase==2.5.0
+supabase>=2.9.0
 python-dotenv==1.0.1
+websockets>=13.0
 
 # AI
-anthropic==0.28.0
+anthropic>=0.49.0
 
 # SNS 投稿
 tweepy==4.14.0
@@ -75,7 +75,7 @@ pytest==8.2.2
 pytest-mock==3.14.0
 ```
 
-> `pip install -r requirements.txt` で全パッケージが揃う。バージョンは固定しており、将来の破壊的変更を防ぐ。
+> `pip install -r requirements.txt` で全パッケージが揃う。beautifulsoup4 は BDI スクレイピング廃止により削除済み。
 
 ---
 
@@ -86,7 +86,7 @@ pytest-mock==3.14.0
 | GitHub Actions | 2,000 分/月 | 課金発生 | 1 ジョブあたり 5 分以内に収める |
 | Supabase DB | 500 MB ストレージ | 超過で書き込み停止 | market_data は 90 日以上の古いレコードを定期削除 |
 | Supabase（稼働） | 7 日無アクセスで自動停止 | DB に繋がらなくなる | hourly cron で毎回 write して停止防止 |
-| Anthropic API | 初回 $5 クレジット後は従量 | 課金発生 | 呼び出しは merchant・self_reflection の 2 箇所に限定 |
+| Anthropic API | 初回 $5 クレジット後は従量 | 課金発生 | 呼び出しは merchant・llm_judge の 2 箇所に限定 |
 | X API（Free） | 投稿 1,500 件/月 | 投稿 API が 403 エラー | 1 日 1 回投稿に絞る（月 30 件程度） |
 | Discord Webhook | 実質無制限 | レートリミット（30 req/分） | retry デコレーターで自動リトライ |
 
@@ -103,13 +103,11 @@ cp .env.example .env
 # .env に実際の値を記入する
 
 # 個別エージェント手動実行
-python -m src.agents.scout_price        # 価格収集（小麦/とうもろこし/ナフサ/銅/リチウム）
-python -m src.agents.scout_logistics    # 物流指標収集（BDRY ETF）
+python -m src.agents.scout_price        # 価格収集（Wheat/Corn/Naphtha/Copper/Lithium）
+python -m src.agents.scout_logistics    # 物流指標収集（BDRY ETF / yfinance）
 python -m src.agents.scout_geopolitical # 地政学リスク収集（VIX/Gold/Oil/DXY）
-python -m src.agents.oracle             # Prophet 予測（14日後）
+python -m src.agents.oracle             # Prophet 予測（14日後・外生変数5本）
 python -m src.agents.merchant           # Claude Haiku で投稿文生成・Discord投稿
-python -m src.agents.accuracy_monitor   # 予測精度照合
-python -m src.agents.self_reflection    # パラメータ自動調整
 
 # 全パイプライン実行（GitHub Actions と同等）
 python main.py
@@ -152,40 +150,50 @@ GitHub Actions (cron: 0 * * * *)
         │     Claude API で「予測の理由」を文章化
         │     → Discord Webhook / X API に投稿
         │
-        └─► Accuracy Monitor
-              14 日前の予測 vs 実績を照合 → feedback_log へ保存
-                    │
-                    └─► Self-Reflection
-                          Claude API で誤差原因を分析
-                          → 翌日の Prophet パラメータを DB に書き込み
+        └─► harness/reporter.py（C + A）
+              └─ evaluators/accuracy.py：14日前の予測 vs 実績 → MAPE 採点
+              └─ evaluators/llm_judge.py：不合格なら Claude Haiku がパラメータ改善案を提案
+              → feedback_log テーブルへ保存
 ```
 
 ### Directory Structure
 
 ```
 S-SCA/
-├── main.py                       # オーケストレーター（エントリポイント）
+├── main.py                       # harness/runner.py を呼ぶだけのエントリポイント
+├── init_db.py                    # テーブル初期化 SQL 実行（初回のみ）
 ├── requirements.txt
 ├── .env.example
+├── config/
+│   └── settings.yaml             # 銘柄・モデル・閾値の設定（コードを触らずに変更可）
 ├── .github/
 │   └── workflows/
 │       └── agents.yml            # hourly cron ワークフロー
+├── harness/
+│   ├── runner.py                 # PDCA オーケストレーター（PipelineRunner）
+│   ├── reporter.py               # 評価 → feedback_log 保存
+│   └── dataloader.py             # Supabase からのデータ取得抽象
+├── evaluators/
+│   ├── base.py                   # BaseEvaluator / EvaluationResult
+│   ├── accuracy.py               # MAPE 採点（AccuracyEvaluator）
+│   └── llm_judge.py              # Claude Haiku によるパラメータ改善提案
+├── agents/
+│   └── prompts/
+│       ├── merchant.py           # Discord 投稿文プロンプト
+│       └── reflection.py         # パラメータ改善提案プロンプト
 ├── src/
 │   ├── agents/
-│   │   ├── scout_price.py        # 価格収集（小麦/とうもろこし/ナフサ/銅/リチウム）
-│   │   ├── scout_logistics.py    # 物流指標収集（BDRY ETF / yfinance）
-│   │   ├── scout_geopolitical.py # 地政学リスク収集（VIX/Gold/Oil/DXY）
-│   │   ├── oracle.py             # Prophet 予測エンジン（複数外生変数対応）
-│   │   ├── merchant.py           # Claude API + SNS 投稿
-│   │   ├── accuracy_monitor.py   # 予測精度照合
-│   │   └── self_reflection.py    # Prophet パラメータ自動調整
+│   │   ├── scout_price.py        # 価格収集（Wheat/Corn/Naphtha/Copper/Lithium）
+│   │   ├── scout_logistics.py    # 物流指標（BDRY ETF / yfinance）
+│   │   ├── scout_geopolitical.py # 地政学リスク（VIX/Gold/Oil/DXY）
+│   │   ├── oracle.py             # Prophet 予測（外生変数 BDI+VIX+Gold+Oil+DXY）
+│   │   └── merchant.py           # Claude Haiku + Discord / X 投稿
 │   ├── models/
-│   │   └── prophet_wrapper.py    # Prophet 共通ラッパー
+│   │   └── prophet_wrapper.py    # Prophet 共通ラッパー（複数 regressor 対応）
 │   └── utils/
 │       ├── database.py           # Supabase 接続クライアント
 │       ├── config.py             # 環境変数ロード（GitHub Secrets 対応）
 │       └── retry.py              # 指数バックオフ付きリトライデコレーター
-├── init_db.py                    # テーブル初期化 SQL 実行（初回のみ）
 └── tests/
     ├── test_scout_price.py
     ├── test_oracle.py
@@ -266,12 +274,18 @@ X_ACCESS_SECRET
 - [ ] `src/agents/oracle.py`：物流データを regressor として注入した 14 日予測
 - [ ] `src/agents/merchant.py`：Claude API で予測理由を文章化 → Discord / X 投稿
 
-### Phase 3 — 自律成長ループ（Day 6–7）
+### Phase 3 — 自律成長ループ（完了）
 
-- [ ] `src/agents/accuracy_monitor.py`：14 日前の予測と実績を照合
-- [ ] `src/agents/self_reflection.py`：誤差原因を Claude に分析させ Prophet パラメータを更新
-- [ ] `src/utils/retry.py`：指数バックオフ付きリトライデコレーター（全外部 API に適用）
-- [ ] Supabase pause 防止：毎時実行時に必ず 1 件 write して無料枠の自動停止を回避
+- [x] `evaluators/accuracy.py`：MAPE で予測精度を採点（AccuracyEvaluator）
+- [x] `evaluators/llm_judge.py`：Claude Haiku が誤差原因を分析し Prophet パラメータを提案
+- [x] `harness/runner.py`：PDCA オーケストレーター（PipelineRunner）
+- [x] `src/utils/retry.py`：指数バックオフ付きリトライデコレーター（全外部 API に適用）
+- [x] Supabase pause 防止：scout_price.run() が毎回 market_data に INSERT（pause 防止兼用）
+
+### Phase 4 — 収益化（未着手）
+
+- [ ] `src/agents/affiliate_writer.py`：予測が閾値超えたときに SEO 記事を自動生成・投稿
+- [ ] X API Secrets を GitHub Secrets に登録（ANTHROPIC_API_KEY・DISCORD_WEBHOOK_URL は登録済み）
 
 ---
 
@@ -283,32 +297,36 @@ X_ACCESS_SECRET
 
 ```python
 SYMBOLS = {
-    "Wheat":  "ZW=F",   # シカゴ小麦先物
-    "Corn":   "ZC=F",   # シカゴコーン先物
-    "Copper": "HG=F",   # 銅先物
+    "Wheat":   "ZW=F",  # シカゴ小麦先物
+    "Corn":    "ZC=F",  # シカゴコーン先物
+    "Naphtha": "RB=F",  # RBOB ガソリン先物（ナフサ代替）
+    "Copper":  "HG=F",  # 銅先物
     "Lithium": "LIT",   # リチウム ETF（先物なし、代替）
-    "Nickel": "^NICKEL" # ニッケル（取得できない場合は代替を検討）
 }
-# 使用例
-import yfinance as yf
-df = yf.download("ZW=F", period="90d", interval="1d")
 ```
 
 ### 物流データ（`scout_logistics.py`）
 
-| 指標 | 取得方法 | URL / 補足 |
+| 指標 | 取得方法 | 補足 |
 |---|---|---|
-| BDI（バルチック海運指数） | Investing.com スクレイピング | `https://www.investing.com/indices/baltic-dry-overview` |
-| BDI（代替・安定） | `quandl` / `nasdaq-data-link` ライブラリ | コード: `CHRIS/CBOE_BDI` |
-| 港湾混雑 | MarineTraffic API（無料枠: 100 req/月） | 主要港の停泊船数を取得 |
+| BDI プロキシ | BDRY ETF（yfinance） | Breakwave Dry Bulk Shipping ETF。Investing.com は GitHub Actions IP をブロックするため廃止 |
 
-> BDI スクレイピングは `requests` + `beautifulsoup4` で実装。`User-Agent` ヘッダーを必ず付与すること。
+> `yf.download("BDRY", period="2d", interval="1d")` で取得。beautifulsoup4 は不要。
+
+### 地政学リスクデータ（`scout_geopolitical.py`）
+
+| 指標 | ティッカー | 意味 |
+|---|---|---|
+| VIX | `^VIX` | 恐怖指数（市場の不確実性） |
+| Gold | `GC=F` | 金先物（安全資産への逃避需要） |
+| Oil | `CL=F` | WTI 原油先物（地政学的緊張） |
+| DXY | `DX-Y.NYB` | ドル指数（ドル高→コモディティ安） |
 
 ---
 
-## Prophet Tuning Parameters（Self-Reflection 対象）
+## Prophet Tuning Parameters（LLM Judge 対象）
 
-`self_reflection.py` が調整するパラメータと許容範囲。`feedback_log.parameter_updates` に JSONB で保存し、翌日の `oracle.py` が読み込む。
+`evaluators/llm_judge.py` が Claude Haiku に提案させるパラメータ。`feedback_log.parameter_updates` に JSONB で保存し、翌日の `oracle.py` が読み込む。
 
 ```python
 PROPHET_PARAM_SCHEMA = {
@@ -342,8 +360,8 @@ PROPHET_PARAM_SCHEMA = {
 ## Key Design Decisions
 
 - **Prophet + logistics regressor**: BDI 等物流指標を `add_regressor()` で外生変数として注入し、純粋な価格時系列より予測精度を向上させる。
-- **Self-healing loop**: `accuracy_monitor` → `self_reflection` → パラメータを `feedback_log` に保存 → 翌日の `oracle` がそれを読み込む、という自律改善サイクル。
-- **Claude API 呼び出し箇所の限定**: `merchant`（投稿文生成）と `self_reflection`（誤差分析）の 2 箇所のみ。予測計算は Prophet で完結させ、APIコストを最小化する。
+- **Self-healing loop**: `evaluators/accuracy.py`（MAPE 採点）→ `evaluators/llm_judge.py`（Claude が改善提案）→ `feedback_log` に保存 → 翌日の `oracle` がそれを読み込む、という自律改善サイクル。
+- **Claude API 呼び出し箇所の限定**: `merchant`（投稿文生成）と `evaluators/llm_judge.py`（誤差分析）の 2 箇所のみ。予測計算は Prophet で完結させ、APIコストを最小化する。
 - **Retry decorator**: ネットワーク障害やレートリミットで 1 エージェントが落ちてもパイプライン全体が止まらないよう、全外部 API 呼び出しに適用する。
 - **Supabase 無料枠の維持**: 7 日間アクセスなしで DB が停止する仕様のため、hourly cron の中で必ず write 処理を含める。
 
