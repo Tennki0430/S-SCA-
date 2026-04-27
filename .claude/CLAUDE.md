@@ -92,6 +92,21 @@ pytest-mock==3.14.0
 
 ---
 
+## トラブルシューティング早見表
+
+| 症状 | 見るべきファイル |
+|------|----------------|
+| 予測がおかしい | `src/agents/oracle.py`、`src/models/prophet_wrapper.py` |
+| 投稿文がおかしい | `src/agents/merchant.py`、`agents/prompts/merchant.py` |
+| 採点基準を変えたい | `evaluators/accuracy.py`（PASS_THRESHOLD_PCT） |
+| Claude の分析が甘い/厳しい | `evaluators/llm_judge.py`、`agents/prompts/reflection.py` |
+| パイプライン全体が止まる | `harness/runner.py` |
+| データが読めない | `harness/dataloader.py` |
+| 結果が保存されない | `harness/reporter.py` |
+| 銘柄・モデルを変えたい | `config/settings.yaml` |
+
+---
+
 ## Commands
 
 ```bash
