@@ -1,8 +1,19 @@
 # パイプライン設計規約（S-SCA プロジェクト）
 
+## PDCAアーキテクチャ
+
+このプロジェクトは **harness/runner.py** が全体を管理するハーネス設計になっている。
+
+```
+P（Plan）   src/agents/oracle.py        → Prophet で14日後価格を予測
+D（Do）     src/agents/merchant.py      → Discord/X に投稿
+C（Check）  evaluators/accuracy.py      → 予測精度を定量評価（MAPE）
+A（Act）    evaluators/llm_judge.py     → Claude がパラメータ改善案を提案
+```
+
 ## エージェントの構造
 
-各エージェントは必ず以下の構造に従う:
+`src/agents/` 内の各エージェントは以下の構造に従う:
 
 ```python
 def run() -> None:
@@ -15,31 +26,35 @@ if __name__ == "__main__":
     run()
 ```
 
-- `run()` 関数を必ず持つ（`main.py` から呼ばれる）
-- 単体実行できるよう `if __name__ == "__main__"` ブロックを持つ
-
 ## 実行順序（依存関係）
 
 ```
-scout_price      （依存なし）
-scout_logistics  （依存なし）
-oracle           （scout_price・scout_logistics のデータが必要）
-merchant         （oracle の結果が必要）
-accuracy_monitor （14日前の prediction_log が必要）
-self_reflection  （accuracy_monitor の結果が必要）
+scout_price         （依存なし）
+scout_logistics     （依存なし）
+scout_geopolitical  （依存なし）
+oracle              （scout_price・scout_logistics・scout_geopolitical のデータが必要）
+merchant            （oracle の結果が必要）
+--- harness/reporter.py が自動で実行 ---
+evaluators/accuracy     （14日前の prediction_log が必要）
+evaluators/llm_judge    （accuracy の結果が必要）
 ```
-
-順序を変えない。`main.py` のコメントに実行順を記載しておく。
 
 ## 新しいエージェントを追加するとき
 
 1. `src/agents/{name}.py` に `run()` を実装する
-2. `.claude/agents/{name}.md` にエージェント定義を作成する
-3. `main.py` に `from src.agents import {name}` と `{name}.run()` を追加する
-4. 実行順序（依存関係）を確認して適切な位置に挿入する
+2. `harness/runner.py` の適切な位置に追加する
+3. `.claude/agents/{name}.md` にエージェント定義を作成する
+
+## 新しい評価指標を追加するとき
+
+1. `evaluators/base.py` の `BaseEvaluator` を継承したクラスを作る
+2. `harness/reporter.py` で使用する
+
+## 設定変更
+
+銘柄・モデル・閾値の変更は `config/settings.yaml` を編集する。コードを触らなくてよい。
 
 ## Supabase 無料枠の維持
 
-- パイプライン実行のたびに必ず 1 件以上の write が発生するようにする
-- `scout_price.run()` が毎回 market_data に INSERT するため、これが Supabase pause 防止を兼ねる
+- `harness/runner.py` の先頭で `keepalive()` を必ず呼ぶ
 - 7日間アクセスがないと DB が停止するため、GitHub Actions の cron を止めない

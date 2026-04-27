@@ -5,6 +5,7 @@ numpy==1.26.4
 
 # データ取得
 yfinance>=0.2.54
+requests>=2.32.0
 
 # DB / 環境変数
 supabase>=2.9.0
