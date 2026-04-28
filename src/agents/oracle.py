@@ -29,7 +29,7 @@ REGRESSOR_SYMBOLS = ["BDI", "VIX", "Gold", "Oil", "DXY"]
 def _build_price_df(records: list[dict]) -> pd.DataFrame:
     """時間単位のレコードを日次（日平均）に集約して返す。"""
     df = pd.DataFrame(records)[["timestamp", "price"]]
-    df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None).dt.normalize()
+    df["ds"] = pd.to_datetime(df["timestamp"], format="ISO8601", utc=True).dt.tz_convert(None).dt.normalize()
     daily = df.groupby("ds")["price"].mean().reset_index()
     daily = daily.rename(columns={"price": "y"})
     return daily.sort_values("ds").reset_index(drop=True)
@@ -40,7 +40,7 @@ def _build_series(records: list[dict]) -> pd.Series:
     if not records:
         return pd.Series(dtype=float)
     df = pd.DataFrame(records)[["timestamp", "price"]].dropna()
-    df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None).dt.normalize()
+    df["ds"] = pd.to_datetime(df["timestamp"], format="ISO8601", utc=True).dt.tz_convert(None).dt.normalize()
     return df.groupby("ds")["price"].mean()
 
 
