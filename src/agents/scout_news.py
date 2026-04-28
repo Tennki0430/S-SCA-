@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 MAX_HEADLINES = 5  # 1銘柄あたりの最大保存件数
 
 
-@retry(max_attempts=2, backoff_factor=2)
+@retry(max_attempts=2, backoff=2.0)
 def _fetch_news(ticker: str) -> list[dict]:
     return yf.Ticker(ticker).news or []
 
