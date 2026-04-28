@@ -1,7 +1,15 @@
 """Merchant Agent: 予測結果を Claude API で文章化し Discord / X に投稿する。"""
 
 import logging
+import sys
+import types
 from datetime import date, timedelta
+
+# Python 3.13 で imghdr が標準ライブラリから削除されたため tweepy 用にスタブを追加
+if "imghdr" not in sys.modules:
+    _imghdr = types.ModuleType("imghdr")
+    _imghdr.what = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+    sys.modules["imghdr"] = _imghdr
 
 import anthropic
 import requests
