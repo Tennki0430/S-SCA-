@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from typing import Any
 
 from supabase import create_client, Client
@@ -48,13 +48,14 @@ def insert_market_data(
 
 
 def fetch_market_data(symbol: str, days: int = 90) -> list[dict[str, Any]]:
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     client = get_client()
     result = (
         client.table("market_data")
         .select("*")
         .eq("symbol", symbol)
+        .gte("timestamp", since)
         .order("timestamp", desc=False)
-        .limit(days)
         .execute()
     )
     return result.data

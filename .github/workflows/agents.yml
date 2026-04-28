@@ -23,6 +23,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Setup Prophet Stan backend
+        run: |
+          python -c "
+          import os, prophet
+          stan_dir = os.path.join(os.path.dirname(prophet.__file__), 'stan_model')
+          makefile = os.path.join(stan_dir, 'cmdstan-2.33.1', 'Makefile')
+          os.makedirs(os.path.dirname(makefile), exist_ok=True)
+          if not os.path.exists(makefile):
+              open(makefile, 'w').write('# placeholder\n')
+              print('Created Makefile for cmdstanpy validation')
+          else:
+              print('Makefile already exists')
+          "
+
       - name: Run pipeline
         env:
           SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}

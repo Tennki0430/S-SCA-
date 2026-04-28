@@ -19,25 +19,29 @@ from src.models.prophet_wrapper import predict
 
 logger = logging.getLogger(__name__)
 
-MIN_ROWS = 30
+MIN_DAYS = 14          # 最低14日分の日次データが必要
+MIN_DAYS_REGRESSORS = 30  # 外生変数は30日分以上揃ってから使用
 
 # Prophet に外生変数として注入する指標シンボル
 REGRESSOR_SYMBOLS = ["BDI", "VIX", "Gold", "Oil", "DXY"]
 
 
 def _build_price_df(records: list[dict]) -> pd.DataFrame:
+    """時間単位のレコードを日次（日平均）に集約して返す。"""
     df = pd.DataFrame(records)[["timestamp", "price"]]
-    df = df.rename(columns={"timestamp": "ds", "price": "y"})
-    df["ds"] = pd.to_datetime(df["ds"]).dt.tz_localize(None)
-    return df.sort_values("ds").reset_index(drop=True)
+    df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None).dt.normalize()
+    daily = df.groupby("ds")["price"].mean().reset_index()
+    daily = daily.rename(columns={"price": "y"})
+    return daily.sort_values("ds").reset_index(drop=True)
 
 
 def _build_series(records: list[dict]) -> pd.Series:
+    """時間単位のレコードを日次平均 Series に変換する。"""
     if not records:
         return pd.Series(dtype=float)
     df = pd.DataFrame(records)[["timestamp", "price"]].dropna()
-    df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
-    return df.set_index("ds")["price"]
+    df["ds"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None).dt.normalize()
+    return df.groupby("ds")["price"].mean()
 
 
 def run() -> None:
@@ -56,20 +60,24 @@ def run() -> None:
     for symbol in SYMBOLS:
         try:
             records = fetch_market_data(symbol, days=90)
-            if len(records) < MIN_ROWS:
-                logger.warning("[%s] データ不足（%d 件）。スキップします。", symbol, len(records))
+            df = _build_price_df(records)
+            if len(df) < MIN_DAYS:
+                logger.warning("[%s] 日次データ不足（%d 日）。スキップします。", symbol, len(df))
                 continue
 
-            df = _build_price_df(records)
             current_price = float(df["y"].iloc[-1])
             param_overrides = fetch_latest_params(symbol)
 
+            # 外生変数は十分なデータが揃ってから使う（少ないと数値不安定）
+            use_regressors = len(df) >= MIN_DAYS_REGRESSORS
             predicted_price, used_params = predict(
                 df=df,
                 forecast_days=FORECAST_DAYS,
-                regressors=regressors if regressors else None,
+                regressors=regressors if use_regressors else None,
                 param_overrides=param_overrides,
             )
+            if not use_regressors:
+                logger.info("[%s] 日次データ %d 日のため外生変数なしで予測", symbol, len(df))
 
             target_date = date.today() + timedelta(days=FORECAST_DAYS)
             record = insert_prediction(

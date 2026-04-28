@@ -41,7 +41,7 @@ def build_model(param_overrides: dict | None = None) -> Prophet:
         seasonality_mode=params["seasonality_mode"],
         daily_seasonality=False,
         weekly_seasonality=True,
-        yearly_seasonality=True,
+        yearly_seasonality=False,  # 数年分のデータがないと過学習するため無効
     )
 
 
@@ -70,8 +70,22 @@ def predict(
         for name, series in regressors.items():
             if series.empty:
                 continue
+            reg_df = series.rename(name).reset_index()
+            reg_df.columns = ["ds_reg", name]
+            reg_df = reg_df.sort_values("ds_reg")
+            merged = pd.merge_asof(
+                df[["ds"]].sort_values("ds"),
+                reg_df,
+                left_on="ds",
+                right_on="ds_reg",
+                direction="nearest",
+            )
+            values = merged[name].values
+            if pd.isna(values).any():
+                logger.warning("外生変数 %s に NaN あり、スキップ", name)
+                continue
             model.add_regressor(name)
-            df[name] = df["ds"].map(series).ffill().bfill()
+            df[name] = values
             active_regressors[name] = series
             logger.info("外生変数を追加: %s (%d件)", name, len(series))
 
@@ -80,7 +94,17 @@ def predict(
     future = model.make_future_dataframe(periods=forecast_days)
     for name, series in active_regressors.items():
         last_val = float(series.iloc[-1])
-        future[name] = future["ds"].map(series).fillna(last_val)
+        reg_df = series.rename(name).reset_index()
+        reg_df.columns = ["ds_reg", name]
+        reg_df = reg_df.sort_values("ds_reg")
+        merged = pd.merge_asof(
+            future[["ds"]].sort_values("ds"),
+            reg_df,
+            left_on="ds",
+            right_on="ds_reg",
+            direction="nearest",
+        )
+        future[name] = merged[name].fillna(last_val).values
 
     forecast = model.predict(future)
     predicted_price = float(forecast.iloc[-1]["yhat"])
