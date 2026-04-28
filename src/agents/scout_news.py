@@ -4,7 +4,6 @@
 """
 
 import logging
-from datetime import datetime, timezone
 
 import yfinance as yf
 from deep_translator import GoogleTranslator
@@ -39,16 +38,15 @@ def run() -> None:
             items = _fetch_news(ticker)
             count = 0
             for item in items[:MAX_HEADLINES]:
-                headline_en = item.get("title", "").strip()
+                content = item.get("content", item)  # yfinance 1.3.0: item["content"]
+                headline_en = content.get("title", "").strip()
                 if not headline_en:
                     continue
                 headline = _translate(headline_en)
-                source = item.get("publisher", "")
-                pub_ts = item.get("providerPublishTime")
-                published_at = (
-                    datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat()
-                    if pub_ts else None
-                )
+                provider = content.get("provider", {})
+                source = provider.get("displayName", content.get("publisher", ""))
+                pub_date = content.get("pubDate") or content.get("displayTime")
+                published_at = pub_date if pub_date else None
                 insert_news(
                     symbol=symbol,
                     headline=headline,
