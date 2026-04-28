@@ -34,3 +34,12 @@ jobs:
           X_ACCESS_TOKEN:      ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET:     ${{ secrets.X_ACCESS_SECRET }}
         run: python main.py
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"⚠️ **S-SCA パイプライン失敗**\n実行日時: $(date '+%Y-%m-%d %H:%M UTC')\nログ: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
