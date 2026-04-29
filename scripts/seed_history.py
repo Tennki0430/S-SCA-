@@ -33,6 +33,9 @@ ALL_SYMBOLS: dict[str, str] = {
     "Gold": "GC=F",
     "Oil": "CL=F",
     "DXY": "DX-Y.NYB",
+    "NatGas": "NG=F",
+    "ChinaETF": "FXI",
+    "Brent": "BZ=F",
 }
 
 

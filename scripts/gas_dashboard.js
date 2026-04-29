@@ -10,11 +10,14 @@ var SUPABASE_KEY = PROPS.getProperty('SUPABASE_KEY');
 var SYMBOLS = ['Wheat', 'Corn', 'Naphtha', 'Copper', 'Lithium'];
 
 var REGRESSOR_CONFIG = [
-  { symbol: 'BDI',  color: '#1a73e8', label: 'BDI (海運指数)' },
-  { symbol: 'VIX',  color: '#e53935', label: 'VIX (恐怖指数)' },
-  { symbol: 'Gold', color: '#f9a825', label: '金先物 (Gold)' },
-  { symbol: 'Oil',  color: '#ef6c00', label: '原油 (Oil)' },
-  { symbol: 'DXY',  color: '#388e3c', label: 'ドル指数 (DXY)' }
+  { symbol: 'BDI',      color: '#1a73e8', label: 'BDI (海運指数)' },
+  { symbol: 'VIX',      color: '#e53935', label: 'VIX (恐怖指数)' },
+  { symbol: 'Gold',     color: '#7B1FA2', label: '金先物 (Gold)' },
+  { symbol: 'Oil',      color: '#00838F', label: '原油WTI (Oil)' },
+  { symbol: 'DXY',      color: '#388e3c', label: 'ドル指数 (DXY)' },
+  { symbol: 'NatGas',   color: '#E65100', label: '天然ガス (NatGas)' },
+  { symbol: 'ChinaETF', color: '#AD1457', label: '中国ETF (FXI)' },
+  { symbol: 'Brent',    color: '#4527A0', label: 'ブレント原油 (Brent)' }
 ];
 
 var SYMBOL_JP = {
@@ -173,11 +176,14 @@ function buildLegendSection(ds, row) {
   row++;
 
   var entries = [
-    ['BDI (海運指数)',  '#1a73e8', '世界の船舶輸送量の先行指標。上昇=物流が活発', '上昇 -> コモディティ需要増 -> 価格上昇傾向'],
-    ['VIX (恐怖指数)',  '#e53935', '株式市場の不安定さ・不確実性の指標',           '上昇 -> リスクオフ -> コモディティ下落傾向'],
-    ['金先物 (Gold)',   '#f9a825', '安全資産への逃避需要。有事に上昇しやすい',     '上昇 -> 地政学リスク高 -> 他銘柄は不安定'],
-    ['原油 (Oil)',      '#ef6c00', 'エネルギーコスト。製造・輸送コストに直結',     '上昇 -> 生産コスト増 -> 価格転嫁で上昇'],
-    ['ドル指数 (DXY)', '#388e3c', '米ドルの強さ (コモディティはドル建て取引)',    '上昇(ドル高) -> 相対的に割高 -> 価格下落圧力']
+    ['BDI (海運指数)',        '#1a73e8', '世界の船舶輸送量の先行指標。上昇=物流が活発',         '上昇 -> コモディティ需要増 -> 価格上昇傾向'],
+    ['VIX (恐怖指数)',        '#e53935', '株式市場の不安定さ・不確実性の指標',                 '上昇 -> リスクオフ -> コモディティ下落傾向'],
+    ['金先物 (Gold)',         '#7B1FA2', '安全資産への逃避需要。有事に上昇しやすい',           '上昇 -> 地政学リスク高 -> 他銘柄は不安定'],
+    ['原油WTI (Oil)',         '#00838F', 'エネルギーコスト。製造・輸送コストに直結',           '上昇 -> 生産コスト増 -> 価格転嫁で上昇'],
+    ['ドル指数 (DXY)',        '#388e3c', '米ドルの強さ (コモディティはドル建て取引)',          '上昇(ドル高) -> 相対的に割高 -> 価格下落圧力'],
+    ['天然ガス (NatGas)',     '#E65100', 'ナフサの競合原料。銅製錬のエネルギーコストにも連動', '上昇 -> ナフサ価格の下押し圧力 / 銅の製造コスト増'],
+    ['中国ETF (FXI)',         '#AD1457', '銅消費の約50%を占める中国経済の代理指標',           '上昇(中国好調) -> 銅・コモディティ需要増 -> 価格上昇'],
+    ['ブレント原油 (Brent)',  '#4527A0', 'アジア・欧州向けナフサ価格はWTIよりブレントに連動', '上昇 -> ナフサ価格の直接押し上げ要因']
   ];
 
   entries.forEach(function(e, i) {

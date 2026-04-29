@@ -1,4 +1,4 @@
-"""Scout Agent（地政学リスク）: VIX・金・原油・ドル指数を yfinance で取得して market_data に保存する。"""
+"""Scout Agent（地政学リスク）: VIX・金・原油・ドル指数・天然ガス・中国ETF・ブレント原油を yfinance で取得して market_data に保存する。"""
 
 import logging
 
@@ -10,10 +10,13 @@ from src.utils.retry import retry
 logger = logging.getLogger(__name__)
 
 GEO_SYMBOLS: dict[str, str] = {
-    "VIX":  "^VIX",       # CBOE 恐怖指数（地政学リスク時に急騰）
-    "Gold": "GC=F",       # 金先物（有事の金、リスク上昇で高騰）
-    "Oil":  "CL=F",       # WTI 原油先物（中東情勢に直結）
-    "DXY":  "DX-Y.NYB",  # ドル指数（地政学リスク時にドル高）
+    "VIX":      "^VIX",       # CBOE 恐怖指数（地政学リスク時に急騰）
+    "Gold":     "GC=F",       # 金先物（有事の金、リスク上昇で高騰）
+    "Oil":      "CL=F",       # WTI 原油先物（中東情勢に直結）
+    "DXY":      "DX-Y.NYB",  # ドル指数（地政学リスク時にドル高）
+    "NatGas":   "NG=F",       # 天然ガス先物（ナフサの競合原料、銅の製錬エネルギーコスト）
+    "ChinaETF": "FXI",        # iShares 中国ETF（銅消費の50%を占める中国需要の代理指標）
+    "Brent":    "BZ=F",       # ブレント原油先物（アジア・欧州向けナフサ価格に直結）
 }
 
 

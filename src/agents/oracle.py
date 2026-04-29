@@ -1,6 +1,7 @@
 """Oracle Agent: Prophet で 14 日後の価格を予測して prediction_log に保存する。
 
-外生変数として物流指標（BDI）と地政学リスク指標（VIX・Gold・Oil・DXY）を使用する。
+外生変数として物流指標（BDI）・地政学リスク指標（VIX・Gold・Oil・DXY）・
+エネルギー/需要指標（NatGas・ChinaETF・Brent）を使用する。
 データが揃っている指標のみ自動で Prophet に注入する。
 """
 
@@ -23,7 +24,7 @@ MIN_DAYS = 14          # 最低14日分の日次データが必要
 MIN_DAYS_REGRESSORS = 30  # 外生変数は30日分以上揃ってから使用
 
 # Prophet に外生変数として注入する指標シンボル
-REGRESSOR_SYMBOLS = ["BDI", "VIX", "Gold", "Oil", "DXY"]
+REGRESSOR_SYMBOLS = ["BDI", "VIX", "Gold", "Oil", "DXY", "NatGas", "ChinaETF", "Brent"]
 
 
 def _build_price_df(records: list[dict]) -> pd.DataFrame:
