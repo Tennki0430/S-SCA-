@@ -11,9 +11,15 @@ from src.utils.config import SYMBOLS
 from src.utils.database import insert_feedback
 from evaluators.accuracy import AccuracyEvaluator
 from evaluators.base import EvaluationResult
+from evaluators import multi_factor
 from harness.dataloader import DataLoader
 
 logger = logging.getLogger(__name__)
+
+# 方向を誤った場合も要改善とみなす
+DIRECTION_FAIL_TRIGGERS_REVIEW = True
+# 外部ショックスコアがこの値以上なら「外部要因」として特別分析
+EXTERNAL_SHOCK_THRESHOLD_PCT = 10.0
 
 
 class Reporter:
@@ -66,6 +72,22 @@ class Reporter:
                 )
                 result.regressors_at_target = self.loader.load_regressor_snapshot(target_date)
                 result.prev_feedbacks = self.loader.load_prev_feedbacks(symbol, limit=5)
+
+                # 多角的評価を実行
+                mf_scores = multi_factor.compute(result)
+                result.multi_factor_scores = mf_scores.to_dict()
+
+                # 「要改善」判定（MAPE不合格 OR 方向誤り）
+                direction_fail = (
+                    DIRECTION_FAIL_TRIGGERS_REVIEW
+                    and mf_scores.direction_accuracy == 0
+                )
+                result.needs_improvement = not result.passed or direction_fail
+
+                if direction_fail and result.passed:
+                    logger.warning(
+                        "[%s] MAPE は合格だが方向を誤った → 要改善フラグを立てる", symbol
+                    )
 
                 insert_feedback(symbol=symbol, error_rate=result.error_rate)
                 results.append(result)

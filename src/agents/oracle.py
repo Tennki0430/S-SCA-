@@ -47,26 +47,44 @@ def _build_series(records: list[dict]) -> pd.Series:
 def run() -> None:
     logger.info("=== Oracle Agent 開始 ===")
 
-    # 外生変数をまとめて取得（データがある指標だけ regressors に追加）
-    regressors: dict[str, pd.Series] = {}
-    for sym in REGRESSOR_SYMBOLS:
-        records = fetch_market_data(sym, days=90)
-        series = _build_series(records)
-        if not series.empty:
-            regressors[sym] = series
-
-    logger.info("利用可能な外生変数: %s", list(regressors.keys()))
-
     for symbol in SYMBOLS:
         try:
-            records = fetch_market_data(symbol, days=90)
+            # LLM Judge が提案した修正パラメータを取得
+            param_overrides = fetch_latest_params(symbol)
+
+            # window_days: LLM が「もっと短期のデータで学習すべき」と判断した場合に変更される
+            window_days = int(param_overrides.pop("window_days", 90))
+            window_days = max(30, min(180, window_days))
+
+            # excluded_regressors: LLM が「この外生変数はノイズ」と判断した場合に除外
+            excluded = param_overrides.pop("excluded_regressors", [])
+            if isinstance(excluded, str):
+                excluded = [s.strip() for s in excluded.split(",") if s.strip()]
+
+            if excluded:
+                logger.info("[%s] 除外する外生変数: %s", symbol, excluded)
+            if window_days != 90:
+                logger.info("[%s] 学習窓: %d 日（LLM Judge による変更）", symbol, window_days)
+
+            # 外生変数をまとめて取得（除外リストを適用）
+            regressors: dict[str, pd.Series] = {}
+            for sym in REGRESSOR_SYMBOLS:
+                if sym in excluded:
+                    continue
+                records = fetch_market_data(sym, days=window_days)
+                series = _build_series(records)
+                if not series.empty:
+                    regressors[sym] = series
+
+            logger.info("[%s] 利用可能な外生変数: %s", symbol, list(regressors.keys()))
+
+            records = fetch_market_data(symbol, days=window_days)
             df = _build_price_df(records)
             if len(df) < MIN_DAYS:
                 logger.warning("[%s] 日次データ不足（%d 日）。スキップします。", symbol, len(df))
                 continue
 
             current_price = float(df["y"].iloc[-1])
-            param_overrides = fetch_latest_params(symbol)
 
             # 外生変数は十分なデータが揃ってから使う（少ないと数値不安定）
             use_regressors = len(df) >= MIN_DAYS_REGRESSORS

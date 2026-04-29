@@ -25,6 +25,10 @@ class EvaluationResult:
     regressors_at_pred: dict[str, float] = field(default_factory=dict)
     regressors_at_target: dict[str, float] = field(default_factory=dict)
     prev_feedbacks: list[dict] = field(default_factory=list)
+    # 多角的評価スコア（multi_factor.py が設定する）
+    multi_factor_scores: dict[str, object] = field(default_factory=dict)
+    # 修正が必要かどうか（MAPE以外の要因でも要改善と判断した場合 True）
+    needs_improvement: bool = field(default=False)
 
 
 class BaseEvaluator(ABC):

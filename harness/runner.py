@@ -50,16 +50,29 @@ class PipelineRunner:
         logger.info("=== 精度照合 完了（%d 件照合） ===", len(results))
 
         # --- A: Act（自律改善） ---
+        # needs_improvement=True の銘柄（MAPE不合格 OR 方向誤り）に対してのみ分析を実行
         logger.info("=== LLM Judge（Act）開始 ===")
         for result in results:
-            if not result.passed:
+            if result.needs_improvement:
+                mf = result.multi_factor_scores
+                logger.info(
+                    "[%s] 要改善: MAPE=%.1f%% / 方向=%s / 外部ショック=%.1f%%(%s)",
+                    result.symbol,
+                    result.error_rate,
+                    "✅" if mf.get("direction_accuracy") == 1 else "❌",
+                    mf.get("external_shock_score", 0),
+                    mf.get("shock_culprit", "?"),
+                )
                 current_params = fetch_latest_params(result.symbol)
                 reasoning, param_updates = self.llm_judge.analyze(result, current_params)
                 if reasoning or param_updates:
                     self.reporter.save_llm_notes(
                         result.symbol, result.error_rate, reasoning, param_updates
                     )
-                    logger.info("[%s] 原因分析・パラメータ更新を保存", result.symbol)
+                    logger.info(
+                        "[%s] 原因分析・パラメータ更新を保存: %s",
+                        result.symbol, param_updates,
+                    )
         logger.info("=== LLM Judge 完了 ===")
 
         logger.info("========== S-SCA パイプライン 完了 ==========")

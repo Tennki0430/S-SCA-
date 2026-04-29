@@ -16,10 +16,16 @@ from prophet import Prophet
 logger = logging.getLogger(__name__)
 
 PARAM_SCHEMA: dict[str, dict] = {
+    # Prophet モデルパラメータ
     "changepoint_prior_scale": {"default": 0.05,       "min": 0.001, "max": 0.5},
     "seasonality_prior_scale": {"default": 10.0,       "min": 0.1,   "max": 20.0},
     "holidays_prior_scale":    {"default": 10.0,       "min": 0.1,   "max": 20.0},
     "seasonality_mode":        {"default": "additive", "options": ["additive", "multiplicative"]},
+    # データ取得パラメータ（oracle.py が読み取る）
+    "window_days": {"default": 90, "min": 30, "max": 180},
+    # 外生変数除外リスト（oracle.py が読み取る）。例: ["Gold", "Oil"]
+    # prophet_wrapper には渡されず oracle.py が事前にフィルタリングする
+    "excluded_regressors": {"default": [], "options": "list"},
 }
 
 # 予測値が現在価格からこの比率を超えると異常とみなしてクリップ
