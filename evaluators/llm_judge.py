@@ -46,7 +46,7 @@ class LLMJudge:
         }
         news_headlines = fetch_recent_news(result.symbol, limit=5)
         prompt = build_reflection_prompt(
-            result.symbol, result.error_rate, schema_summary, news_headlines
+            result, schema_summary, news_headlines, current_params
         )
 
         message = self.client.messages.create(

@@ -46,6 +46,27 @@ class Reporter:
                     predicted=float(pred["predicted_price"]),
                     actual=actual,
                 )
+
+                # PDCA深掘り用コンテキストを付与
+                ts = pred.get("timestamp", "")
+                try:
+                    predicted_date = date.fromisoformat(ts[:10]) if ts else None
+                except ValueError:
+                    predicted_date = None
+
+                result.predicted_date = predicted_date
+                result.target_date = target_date
+                result.current_price_at_pred = (
+                    float(pred["current_price"]) if pred.get("current_price") else None
+                )
+                result.reasoning_text = pred.get("reasoning_text") or ""
+                result.regressors_at_pred = (
+                    self.loader.load_regressor_snapshot(predicted_date)
+                    if predicted_date else {}
+                )
+                result.regressors_at_target = self.loader.load_regressor_snapshot(target_date)
+                result.prev_feedbacks = self.loader.load_prev_feedbacks(symbol, limit=5)
+
                 insert_feedback(symbol=symbol, error_rate=result.error_rate)
                 results.append(result)
 

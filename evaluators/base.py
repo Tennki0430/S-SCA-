@@ -6,6 +6,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import date
 
 
 @dataclass
@@ -16,6 +17,14 @@ class EvaluationResult:
     actual: float
     passed: bool         # True = 合格（誤差が閾値未満）
     notes: str = field(default="")
+    # PDCA深掘り用コンテキスト（reporter.py が設定する）
+    predicted_date: date | None = field(default=None)
+    target_date: date | None = field(default=None)
+    current_price_at_pred: float | None = field(default=None)
+    reasoning_text: str = field(default="")
+    regressors_at_pred: dict[str, float] = field(default_factory=dict)
+    regressors_at_target: dict[str, float] = field(default_factory=dict)
+    prev_feedbacks: list[dict] = field(default_factory=list)
 
 
 class BaseEvaluator(ABC):

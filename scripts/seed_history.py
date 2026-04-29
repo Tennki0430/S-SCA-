@@ -23,7 +23,7 @@ from src.utils.config import SYMBOLS
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-HISTORY_DAYS = 90
+HISTORY_DAYS = 365
 
 # 価格銘柄 + 外生変数（BDI/VIX/Gold/Oil/DXY）
 ALL_SYMBOLS: dict[str, str] = {

@@ -121,6 +121,33 @@ def insert_feedback(
     return result.data[0]
 
 
+def update_feedback_notes(
+    feedback_id: int,
+    self_reflection_notes: str,
+    parameter_updates: dict,
+) -> None:
+    """既存の feedback_log レコードに分析結果を書き込む（遡及適用用）。"""
+    client = get_client()
+    client.table("feedback_log").update({
+        "self_reflection_notes": self_reflection_notes,
+        "parameter_updates": parameter_updates,
+    }).eq("id", feedback_id).execute()
+
+
+def fetch_feedbacks_needing_analysis(threshold_pct: float = 5.0) -> list[dict[str, Any]]:
+    """error_rate が閾値超かつ self_reflection_notes が未記入のレコードを返す。"""
+    client = get_client()
+    result = (
+        client.table("feedback_log")
+        .select("id, timestamp, symbol, error_rate")
+        .gt("error_rate", threshold_pct)
+        .is_("self_reflection_notes", "null")
+        .order("timestamp", desc=False)
+        .execute()
+    )
+    return result.data
+
+
 def fetch_latest_params(symbol: str) -> dict:
     """最新の parameter_updates を取得して Prophet に渡す。"""
     client = get_client()
@@ -156,6 +183,48 @@ def insert_news(
     }
     result = client.table("news_log").insert(row).execute()
     return result.data[0]
+
+
+def fetch_market_data_around_date(
+    symbol: str,
+    target_date: date,
+    window_days: int = 3,
+) -> list[dict[str, Any]]:
+    """指定日の前後 window_days 日以内のデータを返す（先行指標スナップショット用）。"""
+    since = (
+        datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc)
+        - timedelta(days=window_days)
+    ).isoformat()
+    until = (
+        datetime.combine(target_date, datetime.min.time(), tzinfo=timezone.utc)
+        + timedelta(days=window_days + 1)
+    ).isoformat()
+    client = get_client()
+    result = (
+        client.table("market_data")
+        .select("price, timestamp")
+        .eq("symbol", symbol)
+        .gte("timestamp", since)
+        .lte("timestamp", until)
+        .order("timestamp", desc=False)
+        .execute()
+    )
+    return result.data
+
+
+def fetch_recent_feedbacks(symbol: str, limit: int = 5) -> list[dict[str, Any]]:
+    """直近の feedback_log を返す（誤差トレンド確認用）。"""
+    client = get_client()
+    result = (
+        client.table("feedback_log")
+        .select("timestamp, error_rate, self_reflection_notes, parameter_updates")
+        .eq("symbol", symbol)
+        .not_.is_("error_rate", "null")
+        .order("timestamp", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data
 
 
 def fetch_recent_news(symbol: str, limit: int = 5) -> list[str]:
