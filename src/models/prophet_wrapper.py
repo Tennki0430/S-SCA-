@@ -37,7 +37,10 @@ def _resolve_params(overrides: dict) -> dict:
     for key, schema in PARAM_SCHEMA.items():
         val = overrides.get(key, schema["default"])
         if "options" in schema:
-            resolved[key] = val if val in schema["options"] else schema["default"]
+            if schema["options"] == "list":
+                resolved[key] = val if isinstance(val, list) else schema["default"]
+            else:
+                resolved[key] = val if val in schema["options"] else schema["default"]
         else:
             resolved[key] = max(schema["min"], min(schema["max"], float(val)))
     return resolved
