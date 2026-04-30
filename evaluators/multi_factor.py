@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # VIX補正: VIXがこの値を超えると許容MAPE閾値を緩和
 VIX_HIGH_THRESHOLD = 25.0
 VIX_VERY_HIGH_THRESHOLD = 35.0
-REGRESSORS = ["BDI", "VIX", "Gold", "Oil", "DXY"]
+REGRESSORS = ["BDI", "VIX", "Gold", "Oil", "DXY", "NatGas", "ChinaETF", "Brent"]
 
 
 @dataclass

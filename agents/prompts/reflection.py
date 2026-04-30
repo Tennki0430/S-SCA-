@@ -30,7 +30,7 @@ def build_reflection_prompt(
 
     # 先行指標の変化量
     reg_lines = []
-    for sym in ["BDI", "VIX", "Gold", "Oil", "DXY"]:
+    for sym in ["BDI", "VIX", "Gold", "Oil", "DXY", "NatGas", "ChinaETF", "Brent"]:
         v_pred = result.regressors_at_pred.get(sym)
         v_tgt = result.regressors_at_target.get(sym)
         if v_pred and v_tgt and v_pred > 0:
