@@ -3,7 +3,7 @@
 import logging
 import sys
 import types
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 # Python 3.13 で imghdr が標準ライブラリから削除されたため tweepy 用にスタブを追加
 if "imghdr" not in sys.modules:
@@ -24,6 +24,9 @@ from src.utils.config import (
 )
 from src.utils.database import fetch_prediction, insert_prediction
 from src.utils.retry import retry
+
+JST = timezone(timedelta(hours=9))
+NOTIFY_HOUR_JST = 19
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +105,10 @@ def _post_x(text: str) -> None:
 # ---------------------------------------------------------------------------
 
 def run() -> None:
+    now_jst = datetime.now(JST)
+    if now_jst.hour != NOTIFY_HOUR_JST:
+        logger.info("通知時間外（現在 %02d:00 JST）。Discord/X投稿をスキップ。", now_jst.hour)
+        return
     logger.info("=== Merchant Agent 開始 ===")
     target_date = date.today() + timedelta(days=14)
 
