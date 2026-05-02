@@ -41,8 +41,9 @@ class PipelineRunner:
         oracle.run()
 
         # --- D: Do（投稿） ---
-        from src.agents import merchant
+        from src.agents import merchant, affiliate_writer
         merchant.run()
+        affiliate_writer.run()
 
         # --- C: Check（精度照合） ---
         logger.info("=== 精度照合（Check）開始 ===")

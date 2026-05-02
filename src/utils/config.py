@@ -19,6 +19,16 @@ X_API_SECRET = os.getenv("X_API_SECRET", "")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 
+# note.com（非公式APIを使用）
+NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")   # note_session_v5 の値
+NOTE_USERNAME = os.getenv("NOTE_USERNAME", "")               # note のユーザー名
+
+# Amazon アソシエイト
+AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")
+
+# アフィリエイト記事生成の価格変動閾値（%）
+AFFILIATE_THRESHOLD_PCT = float(os.getenv("AFFILIATE_THRESHOLD_PCT", "5.0"))
+
 # 予測対象銘柄とyfinanceティッカーの対応
 # ナフサ: yfinanceに直接先物なし → RBOB ガソリン先物(RB=F)で代替（価格連動）
 # リチウム: 先物なし → Global X リチウム ETF(LIT)で代替
