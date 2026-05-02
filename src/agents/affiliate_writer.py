@@ -425,22 +425,51 @@ def _post_note_playwright(
             page.keyboard.type(body, delay=5)
             page.wait_for_timeout(1000)
 
-            # ── 「公開に進む」ボタン → 公開モーダルページへ ──────────
-            page.click('button:has-text("公開に進む")', timeout=10000)
-            page.wait_for_url("**/publish/**", timeout=15000)
-            page.wait_for_timeout(2000)
-
-            # ── アイキャッチ画像アップロード ──────────────────────────
+            # ── アイキャッチ画像アップロード（エディタページで行う） ──
+            # note.com アイキャッチ設定手順:
+            # ① eyecatch ボタン（sc-131cded0-2.crfVxf）をクリック
+            # ② 展開されたドロップダウンから「画像をアップロード」をクリック
+            # ③ 開いたファイルチューザーに画像をセット
             if tmp_path:
-                # note の公開モーダルはファイル入力を label/div で隠しているため
-                # set_input_files を直接呼ぶ
-                file_input = page.locator('input[type="file"]')
-                if file_input.count() > 0:
-                    file_input.first.set_input_files(tmp_path)
-                    page.wait_for_timeout(4000)
-                    logger.info("アイキャッチ画像をアップロードしました")
-                else:
-                    logger.info("アイキャッチ file input が見つかりません。スキップ。")
+                try:
+                    eyecatch_btn = None
+                    for sel in [
+                        'button.sc-131cded0-2.crfVxf',
+                        'button.sc-131cded0-2',
+                        'button[aria-label="画像を追加"]',
+                    ]:
+                        loc = page.locator(sel)
+                        if loc.count() > 0:
+                            eyecatch_btn = loc.first
+                            logger.info("アイキャッチボタン発見: %s", sel)
+                            break
+
+                    if eyecatch_btn:
+                        eyecatch_btn.click()
+                        page.wait_for_timeout(1500)
+                        # ドロップダウンから「画像をアップロード」を選択し FC を待機
+                        with page.expect_file_chooser(timeout=8000) as fc_info:
+                            page.locator('button:has-text("画像をアップロード")').first.click()
+                        fc_info.value.set_files(tmp_path)
+                        page.wait_for_timeout(3000)
+                        # クロップ確認モーダルの「保存」ボタンをクリック
+                        # ReactModalPortal 内の「保存」を対象にして「下書き保存」との混同を回避
+                        save_btn = page.locator('.ReactModalPortal button:has-text("保存")')
+                        if save_btn.count() > 0:
+                            save_btn.first.click(timeout=8000)
+                            # 画像アップロード完了を待機（6MB 画像を考慮して10秒）
+                            # networkidle はエディタのポーリングで達成できないため固定待機
+                            page.wait_for_timeout(10000)
+                        logger.info("アイキャッチ画像をアップロードしました")
+                    else:
+                        logger.warning("アイキャッチボタンが見つかりません。スキップ。")
+                except Exception as _e:
+                    logger.warning("アイキャッチアップロード失敗（スキップ）: %s", _e)
+
+            # ── 「公開に進む」ボタン → 公開モーダルページへ ──────────
+            page.click('button:has-text("公開に進む")', timeout=15000)
+            page.wait_for_url("**/publish/**", timeout=20000)
+            page.wait_for_timeout(2000)
 
             # ── ハッシュタグ追加 ──────────────────────────────────────
             tag_sel = "input[placeholder='ハッシュタグを追加する']"

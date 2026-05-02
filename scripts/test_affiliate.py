@@ -3,6 +3,7 @@
 内容を確認してからnote/Xに投稿する。
 """
 
+import logging
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -11,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 from src.agents.affiliate_writer import (
     COMMODITY_MAP,
