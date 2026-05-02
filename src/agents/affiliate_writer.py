@@ -24,16 +24,14 @@ import tweepy
 
 from src.utils.config import (
     ANTHROPIC_API_KEY,
-    DISCORD_WEBHOOK_URL,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
     NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
     AFFILIATE_THRESHOLD_PCT,
 )
-from src.utils.database import fetch_market_data, fetch_prediction
+from src.utils.database import fetch_prediction
 from src.utils.retry import retry
-from src.utils.thumbnail import generate_chart
 
 # デフォルトnoteサムネイル（assets/note_thumbnail.png）
 import pathlib
@@ -101,48 +99,12 @@ COMMODITY_MAP: dict[str, dict] = {
 }
 
 
-def _build_thumbnails(
-    symbol: str,
-    label: str,
-    predicted_price: float,
-    target_date: date,
-) -> tuple[bytes | None, bytes | None]:
-    """価格グラフとnoteサムネイルを返す。
-
-    Returns:
-        (chart_bytes, thumbnail_bytes)
-    """
-    # 過去90日の価格データでグラフ生成
-    chart_bytes: bytes | None = None
-    rows = fetch_market_data(symbol, days=90)
-    if len(rows) >= 5:
-        dates = [datetime.fromisoformat(r["timestamp"]).date() for r in rows]
-        prices = [float(r["price"]) for r in rows]
-        chart_bytes = generate_chart(symbol, label, dates, prices, predicted_price, target_date)
-
-    # noteサムネイル: assets/note_thumbnail.png を使用
-    thumbnail_bytes: bytes | None = None
+def _load_thumbnail() -> bytes | None:
+    """assets/note_thumbnail.png を読み込んで返す。"""
     if _DEFAULT_THUMBNAIL.exists():
-        thumbnail_bytes = _DEFAULT_THUMBNAIL.read_bytes()
         logger.info("デフォルトサムネイルを使用: %s", _DEFAULT_THUMBNAIL.name)
-
-    return chart_bytes, thumbnail_bytes
-
-
-def _post_discord_chart(chart_bytes: bytes, caption: str) -> None:
-    """価格チャートをDiscordに画像ファイルとして投稿する。"""
-    if not DISCORD_WEBHOOK_URL or not chart_bytes:
-        return
-    try:
-        requests.post(
-            DISCORD_WEBHOOK_URL,
-            files={"file": ("chart.png", chart_bytes, "image/png")},
-            data={"content": caption},
-            timeout=15,
-        )
-        logger.info("Discord グラフ投稿完了")
-    except Exception as e:
-        logger.warning("Discord グラフ投稿失敗: %s", e)
+        return _DEFAULT_THUMBNAIL.read_bytes()
+    return None
 
 
 def _upload_note_image(image_bytes: bytes) -> str | None:
@@ -346,22 +308,8 @@ def run() -> None:
                 symbol, change_pct, current, predicted, target_date
             )
 
-            # グラフ・サムネイル生成
-            chart_bytes, thumbnail_bytes = _build_thumbnails(
-                symbol, info["label"], predicted, target_date
-            )
-
-            # Discord に価格チャートを投稿
-            if chart_bytes:
-                caption = (
-                    f"**{info['label']} 価格予測チャート**\n"
-                    f"{change_pct:+.1f}%  ${current:.2f} → ${predicted:.2f}\n"
-                    f"（14日後: {target_date}）"
-                )
-                _post_discord_chart(chart_bytes, caption)
-
-            # note に画像をアップロード → eyecatch_key 取得
-            eyecatch_key = _upload_note_image(thumbnail_bytes or chart_bytes)
+            # note サムネイル取得（assets/note_thumbnail.png）
+            eyecatch_key = _upload_note_image(_load_thumbnail())
 
             # note に投稿 → URLを取得
             note_url = _post_note(title, note_body, info["hashtags"], eyecatch_key)
