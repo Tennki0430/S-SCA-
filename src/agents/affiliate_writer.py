@@ -8,7 +8,9 @@ note 投稿は Playwright ブラウザ自動化（NOTE_EMAIL + NOTE_PASSWORD）�
 """
 
 import logging
+import re
 import sys
+import time
 import types
 import urllib.parse
 import yaml
@@ -40,6 +42,37 @@ _DEFAULT_THUMBNAIL = pathlib.Path(__file__).parents[2] / "assets" / "note_thumbn
 _AMAZON_LINKS_PATH = pathlib.Path(__file__).parents[2] / "config" / "amazon_links.yaml"
 
 logger = logging.getLogger(__name__)
+
+_AMAZON_SEARCH_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+}
+
+
+def _get_asin(keyword: str) -> str | None:
+    """Amazon Japan でキーワード検索し、最初の商品の ASIN を返す。
+
+    data-asin 属性（10 文字英数字）を HTML から抽出する。
+    取得失敗時は None を返す（呼び出し元が検索 URL にフォールバック）。
+    """
+    try:
+        url = "https://www.amazon.co.jp/s?k=" + urllib.parse.quote(keyword)
+        resp = requests.get(url, headers=_AMAZON_SEARCH_HEADERS, timeout=15)
+        resp.raise_for_status()
+        asins = re.findall(r'data-asin="([A-Z0-9]{10})"', resp.text)
+        valid = [a for a in asins if a]
+        asin = valid[0] if valid else None
+        if asin:
+            logger.info("[ASIN] '%s' → %s", keyword[:30], asin)
+        return asin
+    except Exception as e:
+        logger.warning("[ASIN] 取得失敗 '%s': %s", keyword[:30], e)
+        return None
 
 
 def _load_amazon_links() -> dict[str, dict[str, str]]:
@@ -171,25 +204,27 @@ def _upload_note_image(image_bytes: bytes) -> str | None:
         return None
 
 
-def _amazon_url(url_or_keyword: str) -> str:
+def _amazon_url(url_or_keyword: str, asin: str | None = None) -> str:
     """Amazon アフィリエイトURLを返す。
 
-    url_or_keyword に "https://" で始まる URL を渡すとそのままタグを付けて返す。
-    キーワード文字列を渡すと検索URLを生成する（フォールバック）。
-
-    Associates リンクビルダーで生成した URL（dp/ASIN 形式）をそのまま渡すことを推奨。
-    例: "https://www.amazon.co.jp/dp/B0XXXXXXXXX"
+    優先順位:
+    1. asin が指定されていれば dp/ASIN 形式の直リンク
+    2. url_or_keyword が "https://" で始まれば URL そのまま（タグ付与）
+    3. それ以外はキーワード検索URL（フォールバック）
     """
+    tag = AMAZON_ASSOCIATE_TAG
+    if asin:
+        base = f"https://www.amazon.co.jp/dp/{asin}"
+        return f"{base}?tag={tag}" if tag else base
     if url_or_keyword.startswith("http"):
         url = url_or_keyword.rstrip()
-        if AMAZON_ASSOCIATE_TAG and "tag=" not in url:
+        if tag and "tag=" not in url:
             sep = "&" if "?" in url else "?"
-            url += f"{sep}tag={AMAZON_ASSOCIATE_TAG}"
+            url += f"{sep}tag={tag}"
         return url
-    # キーワード → 検索URL（商品URLが未設定の場合のフォールバック）
-    params = {"k": url_or_keyword}
-    if AMAZON_ASSOCIATE_TAG:
-        params["tag"] = AMAZON_ASSOCIATE_TAG
+    params: dict[str, str] = {"k": url_or_keyword}
+    if tag:
+        params["tag"] = tag
     return "https://www.amazon.co.jp/s?" + urllib.parse.urlencode(params)
 
 
@@ -249,18 +284,22 @@ def _generate_article(
     product_lines = []
     for name, kw in info["products"]:
         if symbol_links.get(name):
-            # ① YAML に URL が手動設定済み
+            # ① YAML に URL が手動設定済み（最優先）
             url = _amazon_url(symbol_links[name])
             display_name = name
         elif ai_suggestions.get(name):
-            # ② Claude が提案した具体的な商品名で検索URL生成
+            # ② Claude が提案した具体的商品名 → Amazon 検索で ASIN を自動取得 → dp/ 直リンク
             specific_name = ai_suggestions[name]
-            url = _amazon_url(specific_name)
+            asin = _get_asin(specific_name)
+            url = _amazon_url(specific_name, asin=asin)
             display_name = specific_name
+            time.sleep(1)  # Amazon へのアクセスを分散
         else:
-            # ③ 汎用キーワードにフォールバック
-            url = _amazon_url(kw)
+            # ③ 汎用キーワードで ASIN 取得試みる → 失敗なら検索URL
+            asin = _get_asin(kw)
+            url = _amazon_url(kw, asin=asin)
             display_name = name
+            time.sleep(1)
         product_lines.append(f"- {display_name}: {url}")
 
     products_text = "\n".join(product_lines)
