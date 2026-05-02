@@ -29,8 +29,10 @@ from src.utils.config import (
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
     NOTE_EMAIL, NOTE_PASSWORD, NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
+    PA_API_ACCESS_KEY, PA_API_SECRET_KEY,
     AFFILIATE_THRESHOLD_PCT,
 )
+from src.utils.amazon_paapi import search_best_product
 from src.utils.database import fetch_prediction
 from src.utils.retry import retry
 
@@ -207,11 +209,30 @@ def _generate_article(
     """
     info = COMMODITY_MAP[symbol]
     symbol_links = _AMAZON_LINKS.get(symbol, {})
-    products_text = "\n".join(
-        # amazon_links.yaml に URL があればそれを優先、なければキーワードで検索URL生成
-        f"- {name}: {_amazon_url(symbol_links.get(name) or kw)}"
-        for name, kw in info["products"]
-    )
+
+    # 商品リンク解決順: ① YAML手動設定 → ② PA API自動取得 → ③ キーワード検索URL
+    product_lines = []
+    for name, kw in info["products"]:
+        if symbol_links.get(name):
+            # ① YAML に URL が手動設定済み
+            url = _amazon_url(symbol_links[name])
+        else:
+            # ② PA API で実際に売れている商品を検索
+            pa_product = search_best_product(
+                keyword=kw,
+                access_key=PA_API_ACCESS_KEY,
+                secret_key=PA_API_SECRET_KEY,
+                associate_tag=AMAZON_ASSOCIATE_TAG,
+            )
+            if pa_product:
+                url = pa_product.url
+                name = pa_product.title[:40]  # 実際の商品名に置き換え
+            else:
+                # ③ フォールバック：キーワード検索URL
+                url = _amazon_url(kw)
+        product_lines.append(f"- {name}: {url}")
+
+    products_text = "\n".join(product_lines)
 
     prompt = (
         f"あなたはコモディティ価格の値上がりを先読みするアフィリエイトライターです。\n\n"

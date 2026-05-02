@@ -28,6 +28,10 @@ NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")  # 旧方式（互換
 # Amazon アソシエイト
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")
 
+# Amazon PA API（商品検索・ベストセラー取得）
+PA_API_ACCESS_KEY = os.getenv("PA_API_ACCESS_KEY", "")
+PA_API_SECRET_KEY = os.getenv("PA_API_SECRET_KEY", "")
+
 # アフィリエイト記事生成の価格変動閾値（%）
 AFFILIATE_THRESHOLD_PCT = float(os.getenv("AFFILIATE_THRESHOLD_PCT") or "5.0")
 
