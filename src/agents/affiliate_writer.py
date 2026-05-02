@@ -11,6 +11,7 @@ import logging
 import sys
 import types
 import urllib.parse
+import yaml
 from datetime import date, datetime, timedelta, timezone
 
 if "imghdr" not in sys.modules:
@@ -36,8 +37,41 @@ from src.utils.retry import retry
 # デフォルトnoteサムネイル（assets/note_thumbnail.png）
 import pathlib
 _DEFAULT_THUMBNAIL = pathlib.Path(__file__).parents[2] / "assets" / "note_thumbnail.png"
+_AMAZON_LINKS_PATH = pathlib.Path(__file__).parents[2] / "config" / "amazon_links.yaml"
 
 logger = logging.getLogger(__name__)
+
+
+def _load_amazon_links() -> dict[str, dict[str, str]]:
+    """config/amazon_links.yaml から銘柄ごとの Amazon 商品URLを読み込む。
+
+    Returns:
+        {symbol: {product_name: url}} 形式の辞書。
+        URL が空欄の商品はキーに含まれない。
+    """
+    if not _AMAZON_LINKS_PATH.exists():
+        return {}
+    try:
+        data = yaml.safe_load(_AMAZON_LINKS_PATH.read_text(encoding="utf-8")) or {}
+        result: dict[str, dict[str, str]] = {}
+        for symbol, products in data.items():
+            if not isinstance(products, list):
+                continue
+            urls = {
+                p["name"]: p["url"]
+                for p in products
+                if isinstance(p, dict) and p.get("name") and p.get("url")
+            }
+            if urls:
+                result[symbol] = urls
+        return result
+    except Exception as e:
+        logger.warning("amazon_links.yaml 読み込み失敗: %s", e)
+        return {}
+
+
+# モジュール読み込み時に一度だけロード（GitHub Actions で毎回ファイルを読む）
+_AMAZON_LINKS: dict[str, dict[str, str]] = _load_amazon_links()
 
 JST = timezone(timedelta(hours=9))
 AFFILIATE_POST_HOUR_JST = 9   # 毎朝9:00 JST に投稿
@@ -172,8 +206,11 @@ def _generate_article(
         (title, note_body, x_text)
     """
     info = COMMODITY_MAP[symbol]
+    symbol_links = _AMAZON_LINKS.get(symbol, {})
     products_text = "\n".join(
-        f"- {name}: {_amazon_url(kw)}" for name, kw in info["products"]
+        # amazon_links.yaml に URL があればそれを優先、なければキーワードで検索URL生成
+        f"- {name}: {_amazon_url(symbol_links.get(name) or kw)}"
+        for name, kw in info["products"]
     )
 
     prompt = (

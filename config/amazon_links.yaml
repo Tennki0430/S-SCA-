@@ -1,0 +1,46 @@
+# Amazon アフィリエイトリンク設定
+# Amazon Associates の「リンクを取得」ボタンで生成した URL をここに貼り付けるだけで
+# note 記事内のリンクが自動的に商品ページ直リンクに切り替わります。
+#
+# ・url が空欄 ("") の場合はキーワード検索 URL にフォールバックします
+# ・tag= パラメータはコードが自動付与するので、URL にタグが含まれていてもいなくても OK
+
+Copper:
+  - name: 充電式電動工具
+    url: ""   # 例: https://www.amazon.co.jp/dp/B0XXXXXXXXX
+  - name: 高耐久USBケーブル
+    url: ""
+  - name: 延長コード・電線
+    url: ""
+
+Wheat:
+  - name: 小麦粉まとめ買い
+    url: ""
+  - name: パスタ・乾麺
+    url: ""
+  - name: 食品備蓄セット
+    url: ""
+
+Corn:
+  - name: 食用油まとめ買い
+    url: ""
+  - name: コーンスターチ
+    url: ""
+  - name: 加工食品備蓄
+    url: ""
+
+Naphtha:
+  - name: 洗剤詰め替えまとめ買い
+    url: ""
+  - name: ゴミ袋・ラップ備蓄
+    url: ""
+  - name: シャンプー詰め替え
+    url: ""
+
+Lithium:
+  - name: ポータブル電源
+    url: ""
+  - name: 大容量モバイルバッテリー
+    url: ""
+  - name: 電動自転車
+    url: ""
