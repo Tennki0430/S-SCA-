@@ -45,6 +45,10 @@ AFFILIATE_POST_HOUR_JST = 9   # 毎朝9:00 JST に投稿
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # 銘柄ごとのアフィリエイト設定
+# products の第2要素は Amazon Associates リンクビルダーで生成した商品URLを推奨。
+#   例: ("商品名", "https://www.amazon.co.jp/dp/B0XXXXXXXXX")
+# URLが未設定の場合はキーワード文字列を入れると検索URLにフォールバックする。
+#   例: ("商品名", "電動工具 充電式")
 COMMODITY_MAP: dict[str, dict] = {
     "Copper": {
         "label": "銅",
@@ -133,9 +137,23 @@ def _upload_note_image(image_bytes: bytes) -> str | None:
         return None
 
 
-def _amazon_url(keyword: str) -> str:
-    """Amazon Japan 検索URLを生成する（アソシエイトタグ付き）。"""
-    params = {"k": keyword}
+def _amazon_url(url_or_keyword: str) -> str:
+    """Amazon アフィリエイトURLを返す。
+
+    url_or_keyword に "https://" で始まる URL を渡すとそのままタグを付けて返す。
+    キーワード文字列を渡すと検索URLを生成する（フォールバック）。
+
+    Associates リンクビルダーで生成した URL（dp/ASIN 形式）をそのまま渡すことを推奨。
+    例: "https://www.amazon.co.jp/dp/B0XXXXXXXXX"
+    """
+    if url_or_keyword.startswith("http"):
+        url = url_or_keyword.rstrip()
+        if AMAZON_ASSOCIATE_TAG and "tag=" not in url:
+            sep = "&" if "?" in url else "?"
+            url += f"{sep}tag={AMAZON_ASSOCIATE_TAG}"
+        return url
+    # キーワード → 検索URL（商品URLが未設定の場合のフォールバック）
+    params = {"k": url_or_keyword}
     if AMAZON_ASSOCIATE_TAG:
         params["tag"] = AMAZON_ASSOCIATE_TAG
     return "https://www.amazon.co.jp/s?" + urllib.parse.urlencode(params)
