@@ -39,14 +39,18 @@ jobs:
 
       - name: Run pipeline
         env:
-          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
-          ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          X_API_KEY:           ${{ secrets.X_API_KEY }}
-          X_API_SECRET:        ${{ secrets.X_API_SECRET }}
-          X_ACCESS_TOKEN:      ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_SECRET:     ${{ secrets.X_ACCESS_SECRET }}
+          SUPABASE_URL:            ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:            ${{ secrets.SUPABASE_KEY }}
+          ANTHROPIC_API_KEY:       ${{ secrets.ANTHROPIC_API_KEY }}
+          DISCORD_WEBHOOK_URL:     ${{ secrets.DISCORD_WEBHOOK_URL }}
+          X_API_KEY:               ${{ secrets.X_API_KEY }}
+          X_API_SECRET:            ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET:         ${{ secrets.X_ACCESS_SECRET }}
+          NOTE_SESSION_COOKIE:     ${{ secrets.NOTE_SESSION_COOKIE }}
+          NOTE_USERNAME:           ${{ secrets.NOTE_USERNAME }}
+          AMAZON_ASSOCIATE_TAG:    ${{ secrets.AMAZON_ASSOCIATE_TAG }}
+          AFFILIATE_THRESHOLD_PCT: ${{ secrets.AFFILIATE_THRESHOLD_PCT }}
         run: python main.py
 
       - name: Notify Discord on failure
