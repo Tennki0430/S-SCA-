@@ -19,9 +19,11 @@ X_API_SECRET = os.getenv("X_API_SECRET", "")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 
-# note.com（非公式APIを使用）
-NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")   # note_session_v5 の値
-NOTE_USERNAME = os.getenv("NOTE_USERNAME", "")               # note のユーザー名
+# note.com（Playwright ブラウザ自動化）
+NOTE_EMAIL    = os.getenv("NOTE_EMAIL", "")      # note ログインメールアドレス
+NOTE_PASSWORD = os.getenv("NOTE_PASSWORD", "")   # note ログインパスワード
+NOTE_USERNAME = os.getenv("NOTE_USERNAME", "")   # note ユーザー名（投稿URL生成用）
+NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")  # 旧方式（互換用）
 
 # Amazon アソシエイト
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")

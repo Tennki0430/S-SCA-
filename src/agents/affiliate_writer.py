@@ -3,8 +3,8 @@
 Oracle が「銅 +8%」などを予測したとき、Claude Haiku が日本語記事を生成し
 note.com（詳細記事）と X（短文アラート）に同時投稿する。
 
-note 投稿には非公式API（Cookie認証）を使用するため、
-環境変数 NOTE_SESSION_COOKIE にブラウザの note_session_v5 Cookie 値を設定する。
+note 投稿は Playwright ブラウザ自動化（NOTE_EMAIL + NOTE_PASSWORD）を使用する。
+フォールバックとして NOTE_SESSION_COOKIE（非公式API）も残す。
 """
 
 import logging
@@ -26,7 +26,7 @@ from src.utils.config import (
     ANTHROPIC_API_KEY,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
-    NOTE_SESSION_COOKIE, NOTE_USERNAME,
+    NOTE_EMAIL, NOTE_PASSWORD, NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
     AFFILIATE_THRESHOLD_PCT,
 )
@@ -252,6 +252,133 @@ def _post_note(
     return None
 
 
+def _post_note_playwright(
+    title: str,
+    body: str,
+    hashtags: list[str],
+    thumbnail_bytes: bytes | None = None,
+) -> str | None:
+    """Playwright ブラウザ自動化で note.com に記事を投稿し、公開URLを返す。
+
+    NOTE_EMAIL / NOTE_PASSWORD で通常ログインするため、
+    NOTE_SESSION_COOKIE の期限切れ問題を回避できる。
+    """
+    import os as _os
+    import tempfile
+
+    if not NOTE_EMAIL or not NOTE_PASSWORD:
+        logger.info("NOTE_EMAIL/NOTE_PASSWORD 未設定。Playwright 投稿をスキップ。")
+        return None
+
+    tmp_path: str | None = None
+    if thumbnail_bytes:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            f.write(thumbnail_bytes)
+            tmp_path = f.name
+
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: PLC0415
+    except ImportError:
+        logger.warning("playwright がインストールされていません。`pip install playwright` を実行してください。")
+        return None
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            )
+            page = ctx.new_page()
+
+            # ── ログイン ──────────────────────────────────────────────
+            page.goto("https://note.com/login", wait_until="networkidle", timeout=30000)
+            page.fill('input[name="email"]', NOTE_EMAIL)
+            page.fill('input[name="password"]', NOTE_PASSWORD)
+            page.click('button[type="submit"]')
+            # ログイン後のリダイレクトを待つ
+            page.wait_for_timeout(4000)
+            page.wait_for_load_state("networkidle")
+            logger.info("note.com ログイン完了（URL: %s）", page.url)
+
+            # ── 新規テキスト投稿ページ ─────────────────────────────────
+            page.goto("https://note.com/notes/new", wait_until="networkidle", timeout=30000)
+            page.wait_for_timeout(2000)
+
+            # ── タイトル入力 ───────────────────────────────────────────
+            title_sel = (
+                'textarea[placeholder*="タイトル"], '
+                'input[placeholder*="タイトル"], '
+                '[data-placeholder*="タイトル"]'
+            )
+            page.wait_for_selector(title_sel, timeout=15000)
+            page.fill(title_sel, title)
+            page.wait_for_timeout(500)
+
+            # ── 本文入力（ProseMirror コンテンツエディタ） ───────────────
+            # note.com は ProseMirror を使用。click() でフォーカス後 keyboard.type() で入力
+            editor = page.locator(".ProseMirror").last
+            editor.click()
+            page.keyboard.type(body, delay=5)
+            page.wait_for_timeout(1000)
+
+            # ── 「公開する」ボタンを押してモーダルを開く ───────────────
+            page.click('button:has-text("公開する"), button:has-text("公開")', timeout=10000)
+            page.wait_for_timeout(2000)
+
+            # ── モーダル内: ハッシュタグ追加 ──────────────────────────
+            tag_input_sel = (
+                'input[placeholder*="タグ"], '
+                'input[placeholder*="ハッシュ"], '
+                'input[placeholder*="追加"]'
+            )
+            if page.locator(tag_input_sel).count() > 0:
+                for tag in hashtags:
+                    page.fill(tag_input_sel, tag)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(400)
+
+            # ── モーダル内: アイキャッチ画像アップロード ──────────────
+            if tmp_path:
+                file_inputs = page.locator('input[type="file"]')
+                if file_inputs.count() > 0:
+                    file_inputs.first.set_input_files(tmp_path)
+                    page.wait_for_timeout(4000)  # アップロード完了を待つ
+                    logger.info("アイキャッチ画像をアップロードしました")
+
+            # ── 最終公開ボタン ──────────────────────────────────────
+            # モーダル内の「投稿する」or「公開する」ボタン（最後のもの）
+            final_btn = page.locator(
+                'button:has-text("投稿する"), button:has-text("公開する")'
+            ).last
+            final_btn.click()
+            page.wait_for_timeout(5000)
+            page.wait_for_load_state("networkidle")
+
+            published_url = page.url
+            browser.close()
+
+        if "note.com" in published_url and "/n/" in published_url:
+            logger.info("note 投稿完了: %s", published_url)
+            return published_url
+
+        # URLに /n/ が含まれない場合はユーザーページを返す
+        if NOTE_USERNAME:
+            logger.info("note 投稿完了（URL不確定）: %s", published_url)
+            return f"https://note.com/{NOTE_USERNAME}"
+        return None
+
+    except Exception as e:
+        logger.warning("Playwright note 投稿失敗: %s", e)
+        return None
+    finally:
+        if tmp_path and _os.path.exists(tmp_path):
+            _os.unlink(tmp_path)
+
+
 def _post_x(text: str) -> None:
     if not all([X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET]):
         logger.info("X API キー未設定。X 投稿をスキップ。")
@@ -308,11 +435,16 @@ def run() -> None:
                 symbol, change_pct, current, predicted, target_date
             )
 
-            # note サムネイル取得（assets/note_thumbnail.png）
-            eyecatch_key = _upload_note_image(_load_thumbnail())
+            # note 投稿（Playwright 優先 → cookie フォールバック）
+            thumbnail_bytes = _load_thumbnail()
+            if NOTE_EMAIL and NOTE_PASSWORD:
+                note_url = _post_note_playwright(
+                    title, note_body, info["hashtags"], thumbnail_bytes
+                )
+            else:
+                eyecatch_key = _upload_note_image(thumbnail_bytes)
+                note_url = _post_note(title, note_body, info["hashtags"], eyecatch_key)
 
-            # note に投稿 → URLを取得
-            note_url = _post_note(title, note_body, info["hashtags"], eyecatch_key)
             if note_url:
                 logger.info("[%s] note 投稿完了: %s", symbol, note_url)
                 x_with_url = f"{x_text}\n{note_url}"

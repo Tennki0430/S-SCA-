@@ -23,6 +23,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright browsers
+        run: playwright install --with-deps chromium
+
       - name: Setup Prophet Stan backend
         run: |
           python -c "
@@ -47,6 +56,8 @@ jobs:
           X_API_SECRET:            ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET:         ${{ secrets.X_ACCESS_SECRET }}
+          NOTE_EMAIL:              ${{ secrets.NOTE_EMAIL }}
+          NOTE_PASSWORD:           ${{ secrets.NOTE_PASSWORD }}
           NOTE_SESSION_COOKIE:     ${{ secrets.NOTE_SESSION_COOKIE }}
           NOTE_USERNAME:           ${{ secrets.NOTE_USERNAME }}
           AMAZON_ASSOCIATE_TAG:    ${{ secrets.AMAZON_ASSOCIATE_TAG }}
