@@ -296,79 +296,71 @@ def _post_note_playwright(
 
             # ── ログイン ──────────────────────────────────────────────
             page.goto("https://note.com/login", wait_until="networkidle", timeout=30000)
-            page.fill('input[name="email"]', NOTE_EMAIL)
-            page.fill('input[name="password"]', NOTE_PASSWORD)
-            page.click('button[type="submit"]')
-            # ログイン後のリダイレクトを待つ
-            page.wait_for_timeout(4000)
+            page.fill("#email", NOTE_EMAIL)
+            page.fill("#password", NOTE_PASSWORD)
+            page.click('button:has-text("ログイン")')
+            page.wait_for_timeout(5000)
             page.wait_for_load_state("networkidle")
             logger.info("note.com ログイン完了（URL: %s）", page.url)
 
             # ── 新規テキスト投稿ページ ─────────────────────────────────
             page.goto("https://note.com/notes/new", wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(3000)
 
             # ── タイトル入力 ───────────────────────────────────────────
-            title_sel = (
-                'textarea[placeholder*="タイトル"], '
-                'input[placeholder*="タイトル"], '
-                '[data-placeholder*="タイトル"]'
-            )
-            page.wait_for_selector(title_sel, timeout=15000)
-            page.fill(title_sel, title)
+            page.wait_for_selector("textarea[placeholder='記事タイトル']", timeout=15000)
+            page.fill("textarea[placeholder='記事タイトル']", title)
             page.wait_for_timeout(500)
 
-            # ── 本文入力（ProseMirror コンテンツエディタ） ───────────────
-            # note.com は ProseMirror を使用。click() でフォーカス後 keyboard.type() で入力
+            # ── 本文入力（ProseMirror） ────────────────────────────────
             editor = page.locator(".ProseMirror").last
             editor.click()
             page.keyboard.type(body, delay=5)
             page.wait_for_timeout(1000)
 
-            # ── 「公開する」ボタンを押してモーダルを開く ───────────────
-            page.click('button:has-text("公開する"), button:has-text("公開")', timeout=10000)
+            # ── 「公開に進む」ボタン → 公開モーダルページへ ──────────
+            page.click('button:has-text("公開に進む")', timeout=10000)
+            page.wait_for_url("**/publish/**", timeout=15000)
             page.wait_for_timeout(2000)
 
-            # ── モーダル内: ハッシュタグ追加 ──────────────────────────
-            tag_input_sel = (
-                'input[placeholder*="タグ"], '
-                'input[placeholder*="ハッシュ"], '
-                'input[placeholder*="追加"]'
-            )
-            if page.locator(tag_input_sel).count() > 0:
-                for tag in hashtags:
-                    page.fill(tag_input_sel, tag)
-                    page.keyboard.press("Enter")
-                    page.wait_for_timeout(400)
-
-            # ── モーダル内: アイキャッチ画像アップロード ──────────────
+            # ── アイキャッチ画像アップロード ──────────────────────────
             if tmp_path:
-                file_inputs = page.locator('input[type="file"]')
-                if file_inputs.count() > 0:
-                    file_inputs.first.set_input_files(tmp_path)
-                    page.wait_for_timeout(4000)  # アップロード完了を待つ
+                # note の公開モーダルはファイル入力を label/div で隠しているため
+                # set_input_files を直接呼ぶ
+                file_input = page.locator('input[type="file"]')
+                if file_input.count() > 0:
+                    file_input.first.set_input_files(tmp_path)
+                    page.wait_for_timeout(4000)
                     logger.info("アイキャッチ画像をアップロードしました")
+                else:
+                    logger.info("アイキャッチ file input が見つかりません。スキップ。")
 
-            # ── 最終公開ボタン ──────────────────────────────────────
-            # モーダル内の「投稿する」or「公開する」ボタン（最後のもの）
-            final_btn = page.locator(
-                'button:has-text("投稿する"), button:has-text("公開する")'
-            ).last
-            final_btn.click()
+            # ── ハッシュタグ追加 ──────────────────────────────────────
+            tag_sel = "input[placeholder='ハッシュタグを追加する']"
+            if page.locator(tag_sel).count() > 0:
+                for tag in hashtags:
+                    page.fill(tag_sel, tag)
+                    page.keyboard.press("Enter")
+                    page.wait_for_timeout(500)
+
+            # ── 最終「投稿する」ボタン ────────────────────────────────
+            page.click('button:has-text("投稿する")', timeout=10000)
             page.wait_for_timeout(5000)
             page.wait_for_load_state("networkidle")
 
             published_url = page.url
             browser.close()
 
-        if "note.com" in published_url and "/n/" in published_url:
+        # editor.note.com/notes/{key}/publish → note.com/{user}/n/{key} へ変換
+        if "editor.note.com/notes/" in published_url:
+            note_key = published_url.split("/notes/")[1].split("/")[0]
+            if NOTE_USERNAME:
+                published_url = f"https://note.com/{NOTE_USERNAME}/n/{note_key}"
+
+        if "note.com" in published_url:
             logger.info("note 投稿完了: %s", published_url)
             return published_url
 
-        # URLに /n/ が含まれない場合はユーザーページを返す
-        if NOTE_USERNAME:
-            logger.info("note 投稿完了（URL不確定）: %s", published_url)
-            return f"https://note.com/{NOTE_USERNAME}"
         return None
 
     except Exception as e:
