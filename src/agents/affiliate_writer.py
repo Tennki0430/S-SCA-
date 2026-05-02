@@ -24,14 +24,17 @@ import tweepy
 
 from src.utils.config import (
     ANTHROPIC_API_KEY,
+    DISCORD_WEBHOOK_URL,
+    GEMINI_API_KEY,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
     NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
     AFFILIATE_THRESHOLD_PCT,
 )
-from src.utils.database import fetch_prediction
+from src.utils.database import fetch_market_data, fetch_prediction
 from src.utils.retry import retry
+from src.utils.thumbnail import compose_thumbnail, generate_chart, generate_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,80 @@ COMMODITY_MAP: dict[str, dict] = {
         "hashtags": ["ポータブル電源", "リチウム価格", "値上がり前に買う", "防災"],
     },
 }
+
+
+def _build_thumbnails(
+    symbol: str,
+    label: str,
+    change_pct: float,
+    current_price: float,
+    predicted_price: float,
+    target_date: date,
+) -> tuple[bytes | None, bytes | None]:
+    """価格グラフとサムネイル画像を生成する。
+
+    Returns:
+        (chart_bytes, thumbnail_bytes) — 失敗した場合は None
+    """
+    # 過去90日の価格データを取得してグラフ生成
+    chart_bytes: bytes | None = None
+    rows = fetch_market_data(symbol, days=90)
+    if len(rows) >= 5:
+        dates = [datetime.fromisoformat(r["timestamp"]).date() for r in rows]
+        prices = [float(r["price"]) for r in rows]
+        chart_bytes = generate_chart(symbol, label, dates, prices, predicted_price, target_date)
+
+    # Gemini でイメージ画像を生成し、Pillow で合成
+    thumbnail_bytes: bytes | None = None
+    ai_image = generate_thumbnail(symbol, label, change_pct, GEMINI_API_KEY)
+    if ai_image:
+        thumbnail_bytes = compose_thumbnail(
+            ai_image, symbol, label, change_pct, current_price, predicted_price
+        )
+
+    return chart_bytes, thumbnail_bytes
+
+
+def _post_discord_chart(chart_bytes: bytes, caption: str) -> None:
+    """価格チャートをDiscordに画像ファイルとして投稿する。"""
+    if not DISCORD_WEBHOOK_URL or not chart_bytes:
+        return
+    try:
+        requests.post(
+            DISCORD_WEBHOOK_URL,
+            files={"file": ("chart.png", chart_bytes, "image/png")},
+            data={"content": caption},
+            timeout=15,
+        )
+        logger.info("Discord グラフ投稿完了")
+    except Exception as e:
+        logger.warning("Discord グラフ投稿失敗: %s", e)
+
+
+def _upload_note_image(image_bytes: bytes) -> str | None:
+    """note.com に画像をアップロードし、eyecatch_key を返す。"""
+    if not NOTE_SESSION_COOKIE or not image_bytes:
+        return None
+    try:
+        resp = requests.post(
+            "https://note.com/api/v2/attachments/image",
+            headers={
+                "Cookie": f"note_session_v5={NOTE_SESSION_COOKIE}",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            },
+            files={"image": ("thumbnail.png", image_bytes, "image/png")},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("data", {}).get("key") or data.get("key")
+    except Exception as e:
+        logger.warning("note 画像アップロード失敗: %s", e)
+        return None
 
 
 def _amazon_url(keyword: str) -> str:
@@ -162,7 +239,12 @@ def _generate_article(
 
 
 @retry(max_attempts=3, backoff=2.0, exceptions=(Exception,))
-def _post_note(title: str, body: str, hashtags: list[str]) -> str | None:
+def _post_note(
+    title: str,
+    body: str,
+    hashtags: list[str],
+    eyecatch_key: str | None = None,
+) -> str | None:
     """note.com に記事を投稿し、公開URLを返す。失敗時は None。
 
     note.com は公式の投稿APIを公開していないため、ブラウザセッションCookieを使用する。
@@ -172,6 +254,15 @@ def _post_note(title: str, body: str, hashtags: list[str]) -> str | None:
     if not NOTE_SESSION_COOKIE:
         logger.info("NOTE_SESSION_COOKIE 未設定。note 投稿をスキップ。")
         return None
+
+    note_payload: dict = {
+        "title": title,
+        "body": body,
+        "status": "public",
+        "hashtag_list": hashtags,
+    }
+    if eyecatch_key:
+        note_payload["eyecatch_key"] = eyecatch_key
 
     resp = requests.post(
         "https://note.com/api/v3/notes",
@@ -184,14 +275,7 @@ def _post_note(title: str, body: str, hashtags: list[str]) -> str | None:
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
         },
-        json={
-            "note": {
-                "title": title,
-                "body": body,
-                "status": "public",
-                "hashtag_list": hashtags,
-            }
-        },
+        json={"note": note_payload},
         timeout=15,
     )
     resp.raise_for_status()
@@ -258,16 +342,32 @@ def run() -> None:
 
             logger.info("[%s] 閾値超え（%+.1f%%）。記事生成開始。", symbol, change_pct)
 
+            info = COMMODITY_MAP[symbol]
             title, note_body, x_text = _generate_article(
                 symbol, change_pct, current, predicted, target_date
             )
 
+            # グラフ・サムネイル生成
+            chart_bytes, thumbnail_bytes = _build_thumbnails(
+                symbol, info["label"], change_pct, current, predicted, target_date
+            )
+
+            # Discord に価格チャートを投稿
+            if chart_bytes:
+                caption = (
+                    f"**{info['label']} 価格予測チャート**\n"
+                    f"{change_pct:+.1f}%  ${current:.2f} → ${predicted:.2f}\n"
+                    f"（14日後: {target_date}）"
+                )
+                _post_discord_chart(chart_bytes, caption)
+
+            # note に画像をアップロード → eyecatch_key 取得
+            eyecatch_key = _upload_note_image(thumbnail_bytes or chart_bytes)
+
             # note に投稿 → URLを取得
-            info = COMMODITY_MAP[symbol]
-            note_url = _post_note(title, note_body, info["hashtags"])
+            note_url = _post_note(title, note_body, info["hashtags"], eyecatch_key)
             if note_url:
                 logger.info("[%s] note 投稿完了: %s", symbol, note_url)
-                # X 投稿にnoteリンクを付加（140字に収まる範囲で）
                 x_with_url = f"{x_text}\n{note_url}"
                 _post_x(x_with_url[:280])
             else:
