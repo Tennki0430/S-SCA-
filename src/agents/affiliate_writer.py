@@ -25,7 +25,6 @@ import tweepy
 from src.utils.config import (
     ANTHROPIC_API_KEY,
     DISCORD_WEBHOOK_URL,
-    GEMINI_API_KEY,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
     NOTE_SESSION_COOKIE, NOTE_USERNAME,
@@ -34,7 +33,11 @@ from src.utils.config import (
 )
 from src.utils.database import fetch_market_data, fetch_prediction
 from src.utils.retry import retry
-from src.utils.thumbnail import compose_thumbnail, generate_chart, generate_thumbnail
+from src.utils.thumbnail import generate_chart
+
+# デフォルトnoteサムネイル（assets/note_thumbnail.png）
+import pathlib
+_DEFAULT_THUMBNAIL = pathlib.Path(__file__).parents[2] / "assets" / "note_thumbnail.png"
 
 logger = logging.getLogger(__name__)
 
@@ -101,17 +104,15 @@ COMMODITY_MAP: dict[str, dict] = {
 def _build_thumbnails(
     symbol: str,
     label: str,
-    change_pct: float,
-    current_price: float,
     predicted_price: float,
     target_date: date,
 ) -> tuple[bytes | None, bytes | None]:
-    """価格グラフとサムネイル画像を生成する。
+    """価格グラフとnoteサムネイルを返す。
 
     Returns:
-        (chart_bytes, thumbnail_bytes) — 失敗した場合は None
+        (chart_bytes, thumbnail_bytes)
     """
-    # 過去90日の価格データを取得してグラフ生成
+    # 過去90日の価格データでグラフ生成
     chart_bytes: bytes | None = None
     rows = fetch_market_data(symbol, days=90)
     if len(rows) >= 5:
@@ -119,13 +120,11 @@ def _build_thumbnails(
         prices = [float(r["price"]) for r in rows]
         chart_bytes = generate_chart(symbol, label, dates, prices, predicted_price, target_date)
 
-    # Gemini でイメージ画像を生成し、Pillow で合成
+    # noteサムネイル: assets/note_thumbnail.png を使用
     thumbnail_bytes: bytes | None = None
-    ai_image = generate_thumbnail(symbol, label, change_pct, GEMINI_API_KEY)
-    if ai_image:
-        thumbnail_bytes = compose_thumbnail(
-            ai_image, symbol, label, change_pct, current_price, predicted_price
-        )
+    if _DEFAULT_THUMBNAIL.exists():
+        thumbnail_bytes = _DEFAULT_THUMBNAIL.read_bytes()
+        logger.info("デフォルトサムネイルを使用: %s", _DEFAULT_THUMBNAIL.name)
 
     return chart_bytes, thumbnail_bytes
 
@@ -349,7 +348,7 @@ def run() -> None:
 
             # グラフ・サムネイル生成
             chart_bytes, thumbnail_bytes = _build_thumbnails(
-                symbol, info["label"], change_pct, current, predicted, target_date
+                symbol, info["label"], predicted, target_date
             )
 
             # Discord に価格チャートを投稿

@@ -7,7 +7,10 @@
 
 import io
 import logging
+import urllib.parse
 from datetime import date
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,16 @@ def generate_chart(
         matplotlib.use("Agg")  # GUI不要のバックエンド
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
+        import matplotlib.font_manager as fm
+
+        # macOS: Hiragino Sans / Linux: Noto Sans CJK JP でフォールバック
+        jp_candidates = ["Hiragino Sans", "Noto Sans CJK JP", "IPAexGothic", "DejaVu Sans"]
+        jp_font = next(
+            (f for f in jp_candidates
+             if any(fp.name == f for fp in fm.fontManager.ttflist)),
+            "DejaVu Sans",
+        )
+        plt.rcParams["font.family"] = jp_font
 
         fig, ax = plt.subplots(figsize=(10, 5))
         fig.patch.set_facecolor("#0f172a")
@@ -76,43 +89,50 @@ def generate_thumbnail(
     symbol: str,
     label: str,
     change_pct: float,
-    api_key: str,
+    api_key: str = "",
 ) -> bytes | None:
-    """Gemini API で銘柄イメージのサムネイル画像を生成し PNG バイト列で返す。"""
-    if not api_key:
-        logger.info("GEMINI_API_KEY 未設定。サムネイル生成をスキップ。")
-        return None
+    """Pollinations.ai（無料・APIキー不要）でサムネイル画像を生成し PNG バイト列で返す。
+    api_key が設定されている場合は Gemini にフォールバック（将来拡張用）。
+    """
     try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=api_key)
-        direction = "上昇" if change_pct > 0 else "下落"
+        import urllib.parse
+        direction = "rising" if change_pct > 0 else "falling"
         prompt = (
-            f"Create a professional financial news thumbnail for a Japanese article. "
-            f"Topic: {label} commodity price {direction} prediction ({change_pct:+.1f}%). "
-            f"Style: dark background, modern finance aesthetic, "
-            f"subtle upward arrow graphic if rising or downward if falling, "
-            f"no text in image, cinematic lighting, 16:9 ratio."
+            f"professional financial news background, {label} commodity price {direction} "
+            f"prediction, dark navy background, modern finance aesthetic, "
+            f"abstract upward arrow glowing if rising or downward arrow if falling, "
+            f"cinematic dramatic lighting, no text, ultra realistic, 16:9"
         )
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-            ),
+        url = (
+            "https://image.pollinations.ai/prompt/"
+            + urllib.parse.quote(prompt)
+            + "?width=1280&height=720&nologo=true&seed=42"
         )
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, "inline_data") and part.inline_data:
-                import base64
-                return base64.b64decode(part.inline_data.data)
-
-        logger.warning("Gemini からの画像レスポンスが空でした")
-        return None
+        response = requests.get(url, timeout=90)
+        response.raise_for_status()
+        return response.content
 
     except Exception as e:
-        logger.warning("Gemini サムネイル生成失敗: %s", e)
+        logger.warning("Pollinations サムネイル生成失敗: %s", e)
         return None
+
+
+def _load_font(size: int):
+    """日本語対応フォントをサイズ指定でロードする。失敗時はデフォルトを返す。"""
+    from PIL import ImageFont
+    candidates = [
+        "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",          # macOS
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",       # macOS fallback
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",    # Linux (Noto CJK)
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",    # Linux (Noto CJK)
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux fallback
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default(size=size)
 
 
 def compose_thumbnail(
@@ -123,9 +143,9 @@ def compose_thumbnail(
     current_price: float,
     predicted_price: float,
 ) -> bytes | None:
-    """Gemini 生成画像にテキストを重ねて note 用サムネイルを合成する。"""
+    """価格グラフまたはGemini生成画像にテキストを重ねてnote用サムネイルを合成する。"""
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
         import io
 
         img = Image.open(io.BytesIO(base_image)).convert("RGBA")
@@ -134,8 +154,8 @@ def compose_thumbnail(
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        # 下部に半透明の帯
-        draw.rectangle([(0, 480), (1280, 720)], fill=(15, 23, 42, 200))
+        # 下部に半透明の帯（高さ180px）
+        draw.rectangle([(0, 540), (1280, 720)], fill=(10, 16, 30, 220))
 
         img = Image.alpha_composite(img, overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
@@ -143,11 +163,14 @@ def compose_thumbnail(
         direction = "▲" if change_pct > 0 else "▼"
         color = (251, 191, 36) if change_pct > 0 else (248, 113, 113)
 
-        # テキスト描画（フォント指定なしでデフォルトを使用）
-        draw.text((60, 500), f"{label}  価格予測", fill=(148, 163, 184), font=None)
-        draw.text((60, 545), f"{direction} {change_pct:+.1f}%  ${current_price:.2f} → ${predicted_price:.2f}",
-                  fill=color, font=None)
-        draw.text((60, 600), "S-SCA | AI Supply-Chain Agent", fill=(71, 85, 105), font=None)
+        font_label = _load_font(28)
+        font_price = _load_font(40)
+        font_brand = _load_font(20)
+
+        draw.text((60, 552), f"{label}  価格予測レポート", fill=(148, 163, 184), font=font_label)
+        draw.text((60, 592), f"{direction} {change_pct:+.1f}%  ${current_price:.2f} → ${predicted_price:.2f}",
+                  fill=color, font=font_price)
+        draw.text((60, 696), "S-SCA | AI Supply-Chain Agent", fill=(71, 85, 105), font=font_brand)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
