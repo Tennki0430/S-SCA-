@@ -29,10 +29,8 @@ from src.utils.config import (
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
     NOTE_EMAIL, NOTE_PASSWORD, NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
-    PA_API_ACCESS_KEY, PA_API_SECRET_KEY,
     AFFILIATE_THRESHOLD_PCT,
 )
-from src.utils.amazon_paapi import search_best_product
 from src.utils.database import fetch_prediction
 from src.utils.retry import retry
 
@@ -195,6 +193,41 @@ def _amazon_url(url_or_keyword: str) -> str:
     return "https://www.amazon.co.jp/s?" + urllib.parse.urlencode(params)
 
 
+def _suggest_products_with_claude(symbol: str, info: dict) -> dict[str, str]:
+    """Claude Haiku にカテゴリごとの具体的な人気商品名を提案させる。
+
+    Returns:
+        {カテゴリ名: 具体的な商品名} の辞書。失敗時は空辞書。
+    """
+    categories = "\n".join(f"- {name}" for name, _ in info["products"])
+    prompt = (
+        f"日本のAmazonでよく売れている具体的な商品名（ブランド名・型番を含む）を提案してください。\n"
+        f"銘柄: {info['label']}（値上がり予測中）\n\n"
+        f"カテゴリ一覧:\n{categories}\n\n"
+        f"出力形式（他のテキスト不要。1行1カテゴリ）:\n"
+        f"カテゴリ名|具体的な商品名\n\n"
+        f"例:\n"
+        f"充電式電動工具|マキタ DF484DRGX 充電式ドライバドリル\n"
+        f"高耐久USBケーブル|Anker PowerLine III USB-C ケーブル\n"
+    )
+    try:
+        message = claude.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        result: dict[str, str] = {}
+        for line in message.content[0].text.strip().split("\n"):
+            if "|" in line:
+                category, product = line.split("|", 1)
+                result[category.strip()] = product.strip()
+        logger.info("[%s] Claude商品提案: %s", symbol, result)
+        return result
+    except Exception as e:
+        logger.warning("[%s] Claude商品提案失敗: %s", symbol, e)
+        return {}
+
+
 def _generate_article(
     symbol: str,
     change_pct: float,
@@ -210,27 +243,25 @@ def _generate_article(
     info = COMMODITY_MAP[symbol]
     symbol_links = _AMAZON_LINKS.get(symbol, {})
 
-    # 商品リンク解決順: ① YAML手動設定 → ② PA API自動取得 → ③ キーワード検索URL
+    # 商品リンク解決順: ① YAML手動URL → ② Claude提案の具体的商品名 → ③ 汎用キーワード
+    ai_suggestions = _suggest_products_with_claude(symbol, info)
+
     product_lines = []
     for name, kw in info["products"]:
         if symbol_links.get(name):
             # ① YAML に URL が手動設定済み
             url = _amazon_url(symbol_links[name])
+            display_name = name
+        elif ai_suggestions.get(name):
+            # ② Claude が提案した具体的な商品名で検索URL生成
+            specific_name = ai_suggestions[name]
+            url = _amazon_url(specific_name)
+            display_name = specific_name
         else:
-            # ② PA API で実際に売れている商品を検索
-            pa_product = search_best_product(
-                keyword=kw,
-                access_key=PA_API_ACCESS_KEY,
-                secret_key=PA_API_SECRET_KEY,
-                associate_tag=AMAZON_ASSOCIATE_TAG,
-            )
-            if pa_product:
-                url = pa_product.url
-                name = pa_product.title[:40]  # 実際の商品名に置き換え
-            else:
-                # ③ フォールバック：キーワード検索URL
-                url = _amazon_url(kw)
-        product_lines.append(f"- {name}: {url}")
+            # ③ 汎用キーワードにフォールバック
+            url = _amazon_url(kw)
+            display_name = name
+        product_lines.append(f"- {display_name}: {url}")
 
     products_text = "\n".join(product_lines)
 
