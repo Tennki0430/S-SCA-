@@ -8,7 +8,7 @@ on:
 jobs:
   run-agents:
     runs-on: ubuntu-latest
-    timeout-minutes: 10     # 1ジョブあたりの上限（無料枠節約）
+    timeout-minutes: 20     # CmdStan キャッシュミス時のインストールを考慮して20分に設定
 
     steps:
       - name: Checkout
@@ -23,6 +23,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Cache CmdStan
+        id: cache-cmdstan
+        uses: actions/cache@v4
+        with:
+          path: ~/.cmdstan
+          key: cmdstan-${{ runner.os }}-2.38.0
+
+      - name: Install CmdStan
+        if: steps.cache-cmdstan.outputs.cache-hit != 'true'
+        run: python -c "import cmdstanpy; cmdstanpy.install_cmdstan(version='2.38.0', progress=False)"
+        timeout-minutes: 12
+
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -31,20 +43,6 @@ jobs:
 
       - name: Install Playwright browsers
         run: playwright install --with-deps chromium
-
-      - name: Setup Prophet Stan backend
-        run: |
-          python -c "
-          import os, prophet
-          stan_dir = os.path.join(os.path.dirname(prophet.__file__), 'stan_model')
-          makefile = os.path.join(stan_dir, 'cmdstan-2.33.1', 'Makefile')
-          os.makedirs(os.path.dirname(makefile), exist_ok=True)
-          if not os.path.exists(makefile):
-              open(makefile, 'w').write('# placeholder\n')
-              print('Created Makefile for cmdstanpy validation')
-          else:
-              print('Makefile already exists')
-          "
 
       - name: Run pipeline
         env:
@@ -62,6 +60,8 @@ jobs:
           NOTE_USERNAME:           ${{ secrets.NOTE_USERNAME }}
           AMAZON_ASSOCIATE_TAG:    ${{ secrets.AMAZON_ASSOCIATE_TAG }}
           AFFILIATE_THRESHOLD_PCT: ${{ secrets.AFFILIATE_THRESHOLD_PCT }}
+          PA_API_ACCESS_KEY:       ${{ secrets.PA_API_ACCESS_KEY }}
+          PA_API_SECRET_KEY:       ${{ secrets.PA_API_SECRET_KEY }}
         run: python main.py
 
       - name: Notify Discord on failure
