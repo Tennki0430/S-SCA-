@@ -47,6 +47,19 @@ def insert_market_data(
     return result.data[0]
 
 
+def cleanup_old_market_data(retain_days: int = 90) -> int:
+    """90日以上古い market_data を削除して容量を節約する。削除件数を返す。"""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=retain_days)).isoformat()
+    client = get_client()
+    result = (
+        client.table("market_data")
+        .delete()
+        .lt("timestamp", cutoff)
+        .execute()
+    )
+    return len(result.data)
+
+
 def fetch_market_data(symbol: str, days: int = 90) -> list[dict[str, Any]]:
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     client = get_client()

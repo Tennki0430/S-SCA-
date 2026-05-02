@@ -10,7 +10,7 @@ A（Act）    → evaluators/llm_judge.py Claude がパラメータ改善案を�
 
 import logging
 
-from src.utils.database import keepalive, fetch_latest_params
+from src.utils.database import keepalive, fetch_latest_params, cleanup_old_market_data
 from harness.reporter import Reporter
 from evaluators.llm_judge import LLMJudge
 
@@ -28,6 +28,11 @@ class PipelineRunner:
         # Supabase pause 防止（最初に必ず実行）
         keepalive()
         logger.info("Keepalive 完了")
+
+        # 90日以上古い market_data を削除（無料枠 500MB を維持）
+        deleted = cleanup_old_market_data(retain_days=90)
+        if deleted > 0:
+            logger.info("古い market_data を %d 件削除しました", deleted)
 
         # --- データ収集 ---
         from src.agents import scout_price, scout_logistics, scout_geopolitical, scout_news
