@@ -171,11 +171,26 @@ COMMODITY_MAP: dict[str, dict] = {
 
 
 def _load_thumbnail() -> bytes | None:
-    """assets/note_thumbnail.png を読み込んで返す。"""
-    if _DEFAULT_THUMBNAIL.exists():
+    """assets/note_thumbnail.png を 1280×670px にリサイズして返す。
+
+    note.com の推奨サイズに合わせてリサイズすることでアップロードを高速化する。
+    """
+    if not _DEFAULT_THUMBNAIL.exists():
+        return None
+    try:
+        from PIL import Image
+        import io as _io
         logger.info("デフォルトサムネイルを使用: %s", _DEFAULT_THUMBNAIL.name)
+        img = Image.open(_DEFAULT_THUMBNAIL).convert("RGB")
+        img.thumbnail((1280, 670), Image.LANCZOS)
+        buf = _io.BytesIO()
+        img.save(buf, format="JPEG", quality=85, optimize=True)
+        resized = buf.getvalue()
+        logger.info("サムネイルリサイズ: %dKB → %dKB", len(_DEFAULT_THUMBNAIL.read_bytes()) // 1024, len(resized) // 1024)
+        return resized
+    except Exception as e:
+        logger.warning("サムネイルリサイズ失敗、元画像を使用: %s", e)
         return _DEFAULT_THUMBNAIL.read_bytes()
-    return None
 
 
 def _upload_note_image(image_bytes: bytes) -> str | None:
@@ -418,7 +433,9 @@ def _post_note_playwright(
 
     tmp_path: str | None = None
     if thumbnail_bytes:
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        # JPEG でリサイズ済みのためサフィックスを .jpg に変更
+        suffix = ".jpg" if thumbnail_bytes[:3] == b"\xff\xd8\xff" else ".png"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
             f.write(thumbnail_bytes)
             tmp_path = f.name
 
@@ -453,22 +470,9 @@ def _post_note_playwright(
             page.goto("https://note.com/notes/new", wait_until="networkidle", timeout=30000)
             page.wait_for_timeout(3000)
 
-            # ── タイトル入力 ───────────────────────────────────────────
-            page.wait_for_selector("textarea[placeholder='記事タイトル']", timeout=15000)
-            page.fill("textarea[placeholder='記事タイトル']", title)
-            page.wait_for_timeout(500)
-
-            # ── 本文入力（ProseMirror） ────────────────────────────────
-            editor = page.locator(".ProseMirror").last
-            editor.click()
-            page.keyboard.type(body, delay=5)
-            page.wait_for_timeout(1000)
-
-            # ── アイキャッチ画像アップロード（エディタページで行う） ──
-            # note.com アイキャッチ設定手順:
-            # ① eyecatch ボタン（sc-131cded0-2.crfVxf）をクリック
-            # ② 展開されたドロップダウンから「画像をアップロード」をクリック
-            # ③ 開いたファイルチューザーに画像をセット
+            # ── アイキャッチ画像アップロード（タイトル・本文より先に行う） ──
+            # アップロード完了前に「公開に進む」を押すとバリデーションエラーになるため、
+            # 最初にアイキャッチを設定してサーバー側の処理が終わるまで待機する。
             if tmp_path:
                 try:
                     eyecatch_btn = None
@@ -486,24 +490,37 @@ def _post_note_playwright(
                     if eyecatch_btn:
                         eyecatch_btn.click()
                         page.wait_for_timeout(1500)
-                        # ドロップダウンから「画像をアップロード」を選択し FC を待機
                         with page.expect_file_chooser(timeout=8000) as fc_info:
                             page.locator('button:has-text("画像をアップロード")').first.click()
                         fc_info.value.set_files(tmp_path)
                         page.wait_for_timeout(3000)
-                        # クロップ確認モーダルの「保存」ボタンをクリック
-                        # ReactModalPortal 内の「保存」を対象にして「下書き保存」との混同を回避
                         save_btn = page.locator('.ReactModalPortal button:has-text("保存")')
                         if save_btn.count() > 0:
                             save_btn.first.click(timeout=8000)
-                            # 画像アップロード完了を待機（6MB 画像を考慮して10秒）
-                            # networkidle はエディタのポーリングで達成できないため固定待機
-                            page.wait_for_timeout(10000)
+                            # CropModal が閉じる → サーバー転送完了のシグナル
+                            page.wait_for_selector(
+                                '.CropModal__overlay',
+                                state='hidden',
+                                timeout=30000,
+                            )
+                        # eyecatch エリアのローディング（• • •）が消えるまで追加待機
+                        page.wait_for_timeout(5000)
                         logger.info("アイキャッチ画像をアップロードしました")
                     else:
                         logger.warning("アイキャッチボタンが見つかりません。スキップ。")
                 except Exception as _e:
                     logger.warning("アイキャッチアップロード失敗（スキップ）: %s", _e)
+
+            # ── タイトル入力 ───────────────────────────────────────────
+            page.wait_for_selector("textarea[placeholder='記事タイトル']", timeout=15000)
+            page.fill("textarea[placeholder='記事タイトル']", title)
+            page.wait_for_timeout(500)
+
+            # ── 本文入力（ProseMirror） ────────────────────────────────
+            editor = page.locator(".ProseMirror").last
+            editor.click()
+            page.keyboard.type(body, delay=5)
+            page.wait_for_timeout(1000)
 
             # ── 「公開に進む」ボタン → 公開モーダルページへ ──────────
             page.click('button:has-text("公開に進む")', timeout=15000)
