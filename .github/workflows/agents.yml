@@ -23,59 +23,64 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Cache CmdStan
-        id: cache-cmdstan
+      - name: Cache CmdStan for Prophet
         uses: actions/cache@v4
         with:
-          path: ~/.cmdstan
-          key: cmdstan-${{ runner.os }}-2.38.0
+          path: ~/.cache/prophet-cmdstan
+          key: prophet-cmdstan-2.33.1-${{ runner.os }}-v1
 
-      - name: Install or validate CmdStan
+      - name: Install CmdStan into Prophet package directory
         run: |
           python -u -c "
-          import cmdstanpy, pathlib
+          import prophet, cmdstanpy, shutil
+          from pathlib import Path
 
-          cmdstan_dir = pathlib.Path.home() / '.cmdstan'
-          installs = sorted(cmdstan_dir.glob('cmdstan-*')) if cmdstan_dir.exists() else []
-          print('~/.cmdstan 内:', [str(p.name) for p in installs])
+          # Prophet 1.1.5 は site-packages/prophet/stan_model/cmdstan-2.33.1 を期待する
+          prophet_stan_dir = Path(prophet.__file__).parent / 'stan_model'
+          prophet_cmdstan = prophet_stan_dir / 'cmdstan-2.33.1'
+          cache_dir = Path.home() / '.cache' / 'prophet-cmdstan'
 
-          if installs:
-              target = str(installs[-1])
-              cmdstanpy.set_cmdstan_path(target)
-              print('CmdStan キャッシュ使用:', target)
+          print('prophet_stan_dir:', prophet_stan_dir)
+          print('prophet_cmdstan 存在:', prophet_cmdstan.is_dir())
+
+          def is_valid_cmdstan(path):
+              try:
+                  cmdstanpy.set_cmdstan_path(str(path))
+                  return True
+              except Exception:
+                  return False
+
+          # キャッシュが有効なら prophet ディレクトリへコピー
+          if not is_valid_cmdstan(prophet_cmdstan) and cache_dir.is_dir():
+              print('キャッシュから prophet ディレクトリへ復元中...')
+              if prophet_cmdstan.exists():
+                  shutil.rmtree(str(prophet_cmdstan))
+              shutil.copytree(str(cache_dir), str(prophet_cmdstan))
+              print('復元完了')
+
+          # それでも無効なら prophet ディレクトリへ新規インストール
+          if not is_valid_cmdstan(prophet_cmdstan):
+              print('CmdStan 2.33.1 を prophet ディレクトリにインストール中...')
+              if prophet_cmdstan.exists():
+                  shutil.rmtree(str(prophet_cmdstan))
+              cmdstanpy.install_cmdstan(
+                  version='2.33.1', dir=str(prophet_stan_dir), progress=False
+              )
+              # キャッシュへ保存
+              if cache_dir.exists():
+                  shutil.rmtree(str(cache_dir))
+              shutil.copytree(str(prophet_cmdstan), str(cache_dir))
+              print('インストール完了・キャッシュ保存済み')
           else:
-              print('CmdStan キャッシュなし - 新規インストール開始')
-              cmdstanpy.install_cmdstan(version='2.38.0', progress=False)
-              print('CmdStan インストール完了')
+              print('CmdStan 2.33.1 OK (キャッシュ使用)')
 
-          import logging, traceback as tb
-          logging.basicConfig(level=logging.WARNING)
-
-          def test_backend():
-              from prophet.models import CmdStanPyBackend
-              backend = CmdStanPyBackend()
-              print('CmdStanPyBackend OK:', backend.get_type())
-
-          def test_prophet():
-              from prophet import Prophet
-              import pandas as pd, numpy as np
-              rng = np.random.default_rng(42)
-              df = pd.DataFrame({'ds': pd.date_range('2024-01-01', periods=30), 'y': rng.random(30) + 100})
-              Prophet().fit(df)
-
-          try:
-              test_backend()
-              test_prophet()
-              print('Prophet 動作確認 OK (キャッシュ使用)')
-          except Exception as e:
-              print('エラー詳細:')
-              print(tb.format_exc())
-              print('CmdStan を再インストール中...')
-              cmdstanpy.install_cmdstan(version='2.38.0', progress=False, overwrite=True)
-              print('再インストール完了:', cmdstanpy.cmdstan_path())
-              test_backend()
-              test_prophet()
-              print('Prophet 動作確認 OK (再インストール後)')
+          # 動作確認
+          from prophet import Prophet
+          import pandas as pd, numpy as np
+          rng = np.random.default_rng(42)
+          df = pd.DataFrame({'ds': pd.date_range('2024-01-01', periods=30), 'y': rng.random(30) + 100})
+          Prophet().fit(df)
+          print('Prophet 動作確認 OK')
           " 2>&1
         timeout-minutes: 15
 
