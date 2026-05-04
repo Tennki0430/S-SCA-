@@ -48,6 +48,14 @@ jobs:
               cmdstanpy.install_cmdstan(version='2.38.0', progress=False)
               print('CmdStan インストール完了')
 
+          import logging, traceback as tb
+          logging.basicConfig(level=logging.WARNING)
+
+          def test_backend():
+              from prophet.models import CmdStanPyBackend
+              backend = CmdStanPyBackend()
+              print('CmdStanPyBackend OK:', backend.get_type())
+
           def test_prophet():
               from prophet import Prophet
               import pandas as pd, numpy as np
@@ -56,13 +64,16 @@ jobs:
               Prophet().fit(df)
 
           try:
+              test_backend()
               test_prophet()
               print('Prophet 動作確認 OK (キャッシュ使用)')
           except Exception as e:
-              print('キャッシュが無効:', e)
+              print('エラー詳細:')
+              print(tb.format_exc())
               print('CmdStan を再インストール中...')
               cmdstanpy.install_cmdstan(version='2.38.0', progress=False, overwrite=True)
               print('再インストール完了:', cmdstanpy.cmdstan_path())
+              test_backend()
               test_prophet()
               print('Prophet 動作確認 OK (再インストール後)')
           " 2>&1
