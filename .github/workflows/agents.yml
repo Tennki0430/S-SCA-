@@ -44,6 +44,15 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install --with-deps chromium
 
+      - name: Restore note session
+        env:
+          NOTE_SESSION_JSON: ${{ secrets.NOTE_SESSION_JSON }}
+        run: |
+          if [ -n "$NOTE_SESSION_JSON" ]; then
+            mkdir -p ~/.cache/s-sca
+            echo "$NOTE_SESSION_JSON" | base64 -d > ~/.cache/s-sca/note_session.json
+          fi
+
       - name: Run pipeline
         env:
           SUPABASE_URL:            ${{ secrets.SUPABASE_URL }}
@@ -54,8 +63,6 @@ jobs:
           X_API_SECRET:            ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET:         ${{ secrets.X_ACCESS_SECRET }}
-          NOTE_EMAIL:              ${{ secrets.NOTE_EMAIL }}
-          NOTE_PASSWORD:           ${{ secrets.NOTE_PASSWORD }}
           NOTE_SESSION_COOKIE:     ${{ secrets.NOTE_SESSION_COOKIE }}
           NOTE_USERNAME:           ${{ secrets.NOTE_USERNAME }}
           AMAZON_ASSOCIATE_TAG:    ${{ secrets.AMAZON_ASSOCIATE_TAG }}
