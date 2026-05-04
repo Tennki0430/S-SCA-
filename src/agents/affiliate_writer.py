@@ -3,8 +3,7 @@
 Oracle が「銅 +8%」などを予測したとき、Claude Haiku が日本語記事を生成し
 note.com（詳細記事）と X（短文アラート）に同時投稿する。
 
-note 投稿は Playwright ブラウザ自動化（NOTE_EMAIL + NOTE_PASSWORD）を使用する。
-フォールバックとして NOTE_SESSION_COOKIE（非公式API）も残す。
+note 投稿は Playwright セッション方式（scripts/setup_note_session.py で取得）を使用する。
 """
 
 import logging
@@ -29,12 +28,11 @@ from src.utils.config import (
     ANTHROPIC_API_KEY,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
-    NOTE_SESSION_COOKIE, NOTE_USERNAME,
+    NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
     AFFILIATE_THRESHOLD_PCT,
 )
 from src.utils.database import fetch_prediction
-from src.utils.retry import retry
 
 # デフォルトnoteサムネイル（assets/note_thumbnail.png）
 import pathlib
@@ -123,7 +121,6 @@ def _get_amzn_short_urls_batch(asins: list[str]) -> dict[str, str]:
     from playwright.sync_api import sync_playwright
 
     result: dict[str, str] = {}
-    tag = AMAZON_ASSOCIATE_TAG
 
     try:
         with sync_playwright() as p:
@@ -313,32 +310,6 @@ def _load_thumbnail() -> bytes | None:
         return _DEFAULT_THUMBNAIL.read_bytes()
 
 
-def _upload_note_image(image_bytes: bytes) -> str | None:
-    """note.com に画像をアップロードし、eyecatch_key を返す。"""
-    if not NOTE_SESSION_COOKIE or not image_bytes:
-        return None
-    try:
-        resp = requests.post(
-            "https://note.com/api/v2/attachments/image",
-            headers={
-                "Cookie": f"note_session_v5={NOTE_SESSION_COOKIE}",
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-            },
-            files={"image": ("thumbnail.png", image_bytes, "image/png")},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("data", {}).get("key") or data.get("key")
-    except Exception as e:
-        logger.warning("note 画像アップロード失敗: %s", e)
-        return None
-
-
 def _amazon_url(url_or_keyword: str, asin: str | None = None) -> str:
     """Amazon アフィリエイトURLを返す。
 
@@ -490,59 +461,6 @@ def _generate_article(
         x_text = text.split("[X投稿]")[-1].strip()[:140]
 
     return title, note_body, x_text, product_urls
-
-
-@retry(max_attempts=3, backoff=2.0, exceptions=(Exception,))
-def _post_note(
-    title: str,
-    body: str,
-    hashtags: list[str],
-    eyecatch_key: str | None = None,
-) -> str | None:
-    """note.com に記事を投稿し、公開URLを返す。失敗時は None。
-
-    note.com は公式の投稿APIを公開していないため、ブラウザセッションCookieを使用する。
-    NOTE_SESSION_COOKIE に Chrome/Safari の開発者ツールで取得した
-    note_session_v5 Cookie の値を設定する。
-    """
-    if not NOTE_SESSION_COOKIE:
-        logger.info("NOTE_SESSION_COOKIE 未設定。note 投稿をスキップ。")
-        return None
-
-    note_payload: dict = {
-        "title": title,
-        "body": body,
-        "status": "public",
-        "hashtag_list": hashtags,
-    }
-    if eyecatch_key:
-        note_payload["eyecatch_key"] = eyecatch_key
-
-    resp = requests.post(
-        "https://note.com/api/v3/notes",
-        headers={
-            "Cookie": f"note_session_v5={NOTE_SESSION_COOKIE}",
-            "Content-Type": "application/json",
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-        },
-        json={"note": note_payload},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-
-    note_key = (
-        data.get("data", {}).get("key")
-        or data.get("key")
-        or data.get("data", {}).get("id")
-    )
-    if note_key and NOTE_USERNAME:
-        return f"https://note.com/{NOTE_USERNAME}/n/{note_key}"
-    return None
 
 
 def _type_note_body(page: "Page", body: str) -> None:  # type: ignore[name-defined]
@@ -783,15 +701,15 @@ def run() -> None:
                 symbol, change_pct, current, predicted, target_date
             )
 
-            # note 投稿（保存済みセッション優先 → NOTE_SESSION_COOKIE フォールバック）
+            # note 投稿（Playwright セッション方式）
             thumbnail_bytes = _load_thumbnail()
             if _load_note_session():
                 note_url = _post_note_playwright(
                     title, note_body, info["hashtags"], thumbnail_bytes, product_urls
                 )
             else:
-                eyecatch_key = _upload_note_image(thumbnail_bytes)
-                note_url = _post_note(title, note_body, info["hashtags"], eyecatch_key)
+                logger.warning("[%s] note セッション未保存。scripts/setup_note_session.py を実行してください。", symbol)
+                note_url = None
 
             if note_url:
                 logger.info("[%s] note 投稿完了: %s", symbol, note_url)

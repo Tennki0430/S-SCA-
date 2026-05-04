@@ -19,26 +19,15 @@ X_API_SECRET = os.getenv("X_API_SECRET", "")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 
-# note.com（Playwright ブラウザ自動化）
-NOTE_EMAIL    = os.getenv("NOTE_EMAIL", "")      # note ログインメールアドレス
-NOTE_PASSWORD = os.getenv("NOTE_PASSWORD", "")   # note ログインパスワード
+# note.com（Playwright セッション方式）
+# セッションは scripts/setup_note_session.py で取得・更新（有効期限 約30日）
 NOTE_USERNAME = os.getenv("NOTE_USERNAME", "")   # note ユーザー名（投稿URL生成用）
-NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")  # 旧方式（互換用）
 
 # Amazon アソシエイト
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")
-AMAZON_EMAIL    = os.getenv("AMAZON_EMAIL", "")     # Amazon.co.jp ログインメール（amzn.to短縮URL取得用）
-AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")  # Amazon.co.jp ログインパスワード
-
-# Amazon PA API（商品検索・ベストセラー取得）
-PA_API_ACCESS_KEY = os.getenv("PA_API_ACCESS_KEY", "")
-PA_API_SECRET_KEY = os.getenv("PA_API_SECRET_KEY", "")
 
 # アフィリエイト記事生成の価格変動閾値（%）
 AFFILIATE_THRESHOLD_PCT = float(os.getenv("AFFILIATE_THRESHOLD_PCT") or "5.0")
-
-# Gemini API（サムネイル画像生成）
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # 予測対象銘柄とyfinanceティッカーの対応
 # ナフサ: yfinanceに直接先物なし → RBOB ガソリン先物(RB=F)で代替（価格連動）

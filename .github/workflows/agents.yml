@@ -112,12 +112,9 @@ jobs:
           X_API_SECRET:            ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET:         ${{ secrets.X_ACCESS_SECRET }}
-          NOTE_SESSION_COOKIE:     ${{ secrets.NOTE_SESSION_COOKIE }}
           NOTE_USERNAME:           ${{ secrets.NOTE_USERNAME }}
           AMAZON_ASSOCIATE_TAG:    ${{ secrets.AMAZON_ASSOCIATE_TAG }}
           AFFILIATE_THRESHOLD_PCT: ${{ secrets.AFFILIATE_THRESHOLD_PCT }}
-          PA_API_ACCESS_KEY:       ${{ secrets.PA_API_ACCESS_KEY }}
-          PA_API_SECRET_KEY:       ${{ secrets.PA_API_SECRET_KEY }}
         run: python main.py
 
       - name: Notify Discord on failure
