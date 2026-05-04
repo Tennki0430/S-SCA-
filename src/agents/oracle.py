@@ -114,7 +114,8 @@ def run() -> None:
             )
 
         except Exception as e:
-            logger.error("[%s] 予測失敗: %s", symbol, e)
+            import traceback
+            logger.error("[%s] 予測失敗: %s\n%s", symbol, e, traceback.format_exc())
 
     logger.info("=== Oracle Agent 完了 ===")
 
