@@ -29,7 +29,7 @@ from src.utils.config import (
     ANTHROPIC_API_KEY,
     SYMBOLS,
     X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET,
-    NOTE_EMAIL, NOTE_PASSWORD, NOTE_SESSION_COOKIE, NOTE_USERNAME,
+    NOTE_SESSION_COOKIE, NOTE_USERNAME,
     AMAZON_ASSOCIATE_TAG,
     AFFILIATE_THRESHOLD_PCT,
 )
@@ -73,6 +73,126 @@ def _get_asin(keyword: str) -> str | None:
     except Exception as e:
         logger.warning("[ASIN] 取得失敗 '%s': %s", keyword[:30], e)
         return None
+
+
+import json as _json
+
+_AMAZON_COOKIE_CACHE = pathlib.Path.home() / ".cache" / "s-sca" / "amazon_cookies.json"
+_NOTE_SESSION_CACHE = pathlib.Path.home() / ".cache" / "s-sca" / "note_session.json"
+
+
+def _load_amazon_cookie_cache() -> list | None:
+    if not _AMAZON_COOKIE_CACHE.exists():
+        return None
+    try:
+        return _json.loads(_AMAZON_COOKIE_CACHE.read_text())
+    except Exception:
+        return None
+
+
+def _save_amazon_cookie_cache(cookies: list) -> None:
+    _AMAZON_COOKIE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    _AMAZON_COOKIE_CACHE.write_text(_json.dumps(cookies))
+    logger.info("[amzn.to] セッションクッキーを保存: %s", _AMAZON_COOKIE_CACHE)
+
+
+def _load_note_session() -> dict | None:
+    if not _NOTE_SESSION_CACHE.exists():
+        return None
+    try:
+        return _json.loads(_NOTE_SESSION_CACHE.read_text())
+    except Exception:
+        return None
+
+
+def _get_amzn_short_urls_batch(asins: list[str]) -> dict[str, str]:
+    """Amazon SiteStripe API で amzn.to 短縮URLを一括取得する。
+
+    キャッシュ済みクッキーを Playwright コンテキストに読み込み、
+    ブラウザ内から SiteStripe API を叩く（JavaScript 実行環境が必要）。
+    setup_amazon_cookies.py で事前にクッキーを保存しておく必要がある。
+    """
+    if not asins or not AMAZON_ASSOCIATE_TAG:
+        return {}
+
+    cached = _load_amazon_cookie_cache()
+    if not cached:
+        logger.info("[amzn.to] クッキー未保存。scripts/setup_amazon_cookies.py を実行してください。")
+        return {}
+
+    from playwright.sync_api import sync_playwright
+
+    result: dict[str, str] = {}
+    tag = AMAZON_ASSOCIATE_TAG
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            ctx = browser.new_context(user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ))
+            # キャッシュクッキーをブラウザコンテキストに注入
+            ctx.add_cookies(cached)
+
+            page = ctx.new_page()
+            # 最初のASIN商品ページでSiteStripeセッションを確立
+            page.goto(f"https://www.amazon.co.jp/dp/{asins[0]}", wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(2000)
+
+            # 各ASINの商品ページを開き SiteStripe「テキスト」ボタンから amzn.to を取得
+            for asin in asins:
+                try:
+                    page.goto(
+                        f"https://www.amazon.co.jp/dp/{asin}",
+                        wait_until="domcontentloaded",
+                        timeout=20000,
+                    )
+                    page.wait_for_timeout(2000)
+
+                    # SiteStripe「テキスト」ボタンをクリック
+                    text_btn = page.locator(
+                        '#sitb-strip-text-link, '
+                        'a[id*="sitestripe-text"], '
+                        'button[id*="sitestripe-text"], '
+                        '.SiteStripeTextLink, '
+                        'a:has-text("テキスト"), '
+                        'a:has-text("Text")'
+                    )
+                    if text_btn.count() == 0:
+                        logger.warning("[amzn.to] %s: SiteStripe テキストボタン未発見", asin)
+                        continue
+
+                    text_btn.first.click()
+                    page.wait_for_timeout(1500)
+
+                    # 表示されたポップアップの短縮URLを取得
+                    short_input = page.locator(
+                        'input[value*="amzn.to"], '
+                        'input[id*="short-url"], '
+                        '#sitb-strip-short-url, '
+                        '.sitb-strip-url-field'
+                    )
+                    if short_input.count() > 0:
+                        short_url = short_input.first.input_value()
+                        if short_url and "amzn.to" in short_url:
+                            result[asin] = short_url
+                            logger.info("[amzn.to] %s → %s", asin, short_url)
+                        else:
+                            logger.warning("[amzn.to] %s: 短縮URL未取得（値=%s）", asin, short_url[:40])
+                    else:
+                        logger.warning("[amzn.to] %s: 短縮URLフィールド未発見", asin)
+
+                    time.sleep(0.5)
+                except Exception as e:
+                    logger.warning("[amzn.to] %s 取得失敗: %s", asin, e)
+
+            browser.close()
+
+    except Exception as e:
+        logger.warning("[amzn.to] Playwright セッション失敗: %s", e)
+
+    return result
 
 
 def _load_amazon_links() -> dict[str, dict[str, str]]:
@@ -284,11 +404,12 @@ def _generate_article(
     current_price: float,
     predicted_price: float,
     target_date: date,
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str, list[str]]:
     """Claude Haiku で note 記事本文・タイトル・X短文を生成する。
 
     Returns:
-        (title, note_body, x_text)
+        (title, note_body, x_text, product_urls)
+        product_urls: OGP カードとして埋め込む Amazon URL リスト
     """
     info = COMMODITY_MAP[symbol]
     symbol_links = _AMAZON_LINKS.get(symbol, {})
@@ -296,29 +417,39 @@ def _generate_article(
     # 商品リンク解決順: ① YAML手動URL → ② Claude提案の具体的商品名 → ③ 汎用キーワード
     ai_suggestions = _suggest_products_with_claude(symbol, info)
 
-    product_lines = []
+    # Pass 1: 商品名・ASIN・フォールバックURLを解決
+    products_resolved: list[tuple[str, str | None, str]] = []
     for name, kw in info["products"]:
         if symbol_links.get(name):
-            # ① YAML に URL が手動設定済み（最優先）
             url = _amazon_url(symbol_links[name])
-            display_name = name
+            products_resolved.append((name, None, url))
         elif ai_suggestions.get(name):
-            # ② Claude が提案した具体的商品名 → Amazon 検索で ASIN を自動取得 → dp/ 直リンク
             specific_name = ai_suggestions[name]
             asin = _get_asin(specific_name)
             url = _amazon_url(specific_name, asin=asin)
-            display_name = specific_name
-            time.sleep(1)  # Amazon へのアクセスを分散
+            products_resolved.append((specific_name, asin, url))
+            time.sleep(1)
         else:
-            # ③ 汎用キーワードで ASIN 取得試みる → 失敗なら検索URL
             asin = _get_asin(kw)
             url = _amazon_url(kw, asin=asin)
-            display_name = name
+            products_resolved.append((name, asin, url))
             time.sleep(1)
-        product_lines.append(f"- {display_name}: {url}")
 
-    products_text = "\n".join(product_lines)
+    # Pass 2: amzn.to 短縮URLを一括取得（Amazon SiteStripe API）
+    all_asins = [a for _, a, _ in products_resolved if a]
+    short_url_map = _get_amzn_short_urls_batch(all_asins)
 
+    # Pass 3: OGP カード用 URL リストと Claude 向け商品名リストを作成
+    product_urls: list[str] = []
+    product_name_lines: list[str] = []
+    for display_name, asin, fallback_url in products_resolved:
+        final_url = short_url_map.get(asin, fallback_url) if asin else fallback_url
+        product_urls.append(final_url)
+        product_name_lines.append(f"・{display_name}")
+
+    products_text = "\n".join(product_name_lines)
+
+    # Claude には商品名のみ渡す（URLは別途 OGP カードで挿入）
     prompt = (
         f"あなたはコモディティ価格の値上がりを先読みするアフィリエイトライターです。\n\n"
         f"【予測データ】\n"
@@ -326,14 +457,15 @@ def _generate_article(
         f"現在価格: ${current_price:.2f}\n"
         f"14日後（{target_date}）の予測価格: ${predicted_price:.2f}（{change_pct:+.1f}%）\n"
         f"消費者向け製品への波及タイミング: {info['lag_weeks']}後\n\n"
-        f"【商品リスト（Amazonリンク付き）】\n"
+        f"【値上がり前に買うべき商品カテゴリ】\n"
         f"{products_text}\n\n"
         f"以下の形式で出力してください。他のテキスト不要。\n\n"
         f"[タイトル]\n"
         f"【値上がり警報】〜〜（50字以内）\n\n"
         f"[note本文]\n"
-        f"note.comに投稿する記事（400〜600字）。\n"
-        f"「なぜ今買うべきか」を冒頭で説明し、商品ごとにAmazonリンクを自然に組み込む。\n"
+        f"note.comに投稿する記事（300〜500字）。\n"
+        f"「なぜ今買うべきか」を冒頭で説明し、上記の商品カテゴリを本文中に自然に言及する。\n"
+        f"URLは一切書かないこと（別途商品リンクカードを添付する）。\n"
         f"文末に「*本記事はAIによる価格予測を元にした情報提供です。投資判断の根拠にはなりません。」を追加。\n\n"
         f"[X投稿]\n"
         f"140字以内。予測値と商品カテゴリを含み、記事への誘導文で締める。"
@@ -357,7 +489,7 @@ def _generate_article(
     if "[X投稿]" in text:
         x_text = text.split("[X投稿]")[-1].strip()[:140]
 
-    return title, note_body, x_text
+    return title, note_body, x_text, product_urls
 
 
 @retry(max_attempts=3, backoff=2.0, exceptions=(Exception,))
@@ -413,22 +545,53 @@ def _post_note(
     return None
 
 
+def _type_note_body(page: "Page", body: str) -> None:  # type: ignore[name-defined]
+    """note ProseMirrorエディタに本文テキストを入力する（URLなし）。"""
+    page.keyboard.type(body, delay=4)
+
+
+def _insert_ogp_cards(page: "Page", product_urls: list[str]) -> None:  # type: ignore[name-defined]
+    """商品URLを単独行に貼り付けて note.com の OGP カード（バナー形式）を挿入する。
+
+    note.com はURLのみの行を自動的に商品画像・タイトル付きのカードとして表示する。
+    """
+    if not product_urls:
+        return
+
+    # 「おすすめ商品」見出しを追加
+    page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    page.keyboard.type("▼ 値上がり前に買うべきおすすめ商品", delay=4)
+    page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+
+    for url in product_urls:
+        # URLを単独行に入力 → note.com が OGP カードに変換
+        page.keyboard.type(url, delay=4)
+        page.keyboard.press("Enter")
+        # OGP カードの読み込みを待つ
+        page.wait_for_timeout(2500)
+        page.keyboard.press("Enter")
+
+
 def _post_note_playwright(
     title: str,
     body: str,
     hashtags: list[str],
     thumbnail_bytes: bytes | None = None,
+    product_urls: list[str] | None = None,
 ) -> str | None:
     """Playwright ブラウザ自動化で note.com に記事を投稿し、公開URLを返す。
 
-    NOTE_EMAIL / NOTE_PASSWORD で通常ログインするため、
-    NOTE_SESSION_COOKIE の期限切れ問題を回避できる。
+    scripts/setup_note_session.py で保存したセッション状態を復元して投稿する。
+    reCAPTCHA の回避のため、手動ログインで取得したセッションを再利用する。
     """
     import os as _os
     import tempfile
 
-    if not NOTE_EMAIL or not NOTE_PASSWORD:
-        logger.info("NOTE_EMAIL/NOTE_PASSWORD 未設定。Playwright 投稿をスキップ。")
+    session_state = _load_note_session()
+    if not session_state:
+        logger.info("note セッション未保存。scripts/setup_note_session.py を実行してください。")
         return None
 
     tmp_path: str | None = None
@@ -448,26 +611,24 @@ def _post_note_playwright(
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
+            # 保存済みセッション（Cookie + localStorage）を復元してログイン状態を再現
             ctx = browser.new_context(
+                storage_state=session_state,
                 user_agent=(
                     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
                     "Chrome/120.0.0.0 Safari/537.36"
-                )
+                ),
             )
             page = ctx.new_page()
 
-            # ── ログイン ──────────────────────────────────────────────
-            page.goto("https://note.com/login", wait_until="networkidle", timeout=30000)
-            page.fill("#email", NOTE_EMAIL)
-            page.fill("#password", NOTE_PASSWORD)
-            page.click('button:has-text("ログイン")')
-            page.wait_for_timeout(5000)
-            page.wait_for_load_state("networkidle")
-            logger.info("note.com ログイン完了（URL: %s）", page.url)
+            # セッション確認
+            page.goto("https://note.com/", wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2000)
+            logger.info("note.com セッション復元（URL: %s）", page.url)
 
             # ── 新規テキスト投稿ページ ─────────────────────────────────
-            page.goto("https://note.com/notes/new", wait_until="networkidle", timeout=30000)
+            page.goto("https://note.com/notes/new", wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(3000)
 
             # ── アイキャッチ画像アップロード（タイトル・本文より先に行う） ──
@@ -516,10 +677,13 @@ def _post_note_playwright(
             page.fill("textarea[placeholder='記事タイトル']", title)
             page.wait_for_timeout(500)
 
-            # ── 本文入力（ProseMirror） ────────────────────────────────
+            # ── 本文入力（ProseMirror）──────────────────────────────────
             editor = page.locator(".ProseMirror").last
             editor.click()
-            page.keyboard.type(body, delay=5)
+            _type_note_body(page, body)
+            # 商品 OGP カードを本文末尾に挿入
+            if product_urls:
+                _insert_ogp_cards(page, product_urls)
             page.wait_for_timeout(1000)
 
             # ── 「公開に進む」ボタン → 公開モーダルページへ ──────────
@@ -615,15 +779,15 @@ def run() -> None:
             logger.info("[%s] 閾値超え（%+.1f%%）。記事生成開始。", symbol, change_pct)
 
             info = COMMODITY_MAP[symbol]
-            title, note_body, x_text = _generate_article(
+            title, note_body, x_text, product_urls = _generate_article(
                 symbol, change_pct, current, predicted, target_date
             )
 
-            # note 投稿（Playwright 優先 → cookie フォールバック）
+            # note 投稿（保存済みセッション優先 → NOTE_SESSION_COOKIE フォールバック）
             thumbnail_bytes = _load_thumbnail()
-            if NOTE_EMAIL and NOTE_PASSWORD:
+            if _load_note_session():
                 note_url = _post_note_playwright(
-                    title, note_body, info["hashtags"], thumbnail_bytes
+                    title, note_body, info["hashtags"], thumbnail_bytes, product_urls
                 )
             else:
                 eyecatch_key = _upload_note_image(thumbnail_bytes)

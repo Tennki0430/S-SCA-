@@ -27,6 +27,8 @@ NOTE_SESSION_COOKIE = os.getenv("NOTE_SESSION_COOKIE", "")  # 旧方式（互換
 
 # Amazon アソシエイト
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")
+AMAZON_EMAIL    = os.getenv("AMAZON_EMAIL", "")     # Amazon.co.jp ログインメール（amzn.to短縮URL取得用）
+AMAZON_PASSWORD = os.getenv("AMAZON_PASSWORD", "")  # Amazon.co.jp ログインパスワード
 
 # Amazon PA API（商品検索・ベストセラー取得）
 PA_API_ACCESS_KEY = os.getenv("PA_API_ACCESS_KEY", "")

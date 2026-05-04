@@ -18,13 +18,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 from src.agents.affiliate_writer import (
     COMMODITY_MAP,
     _generate_article,
+    _load_note_session,
     _load_thumbnail,
     _post_note,
     _post_note_playwright,
     _post_x,
     _upload_note_image,
 )
-from src.utils.config import NOTE_EMAIL, NOTE_PASSWORD
 from src.utils.database import fetch_prediction
 
 # ── テスト対象銘柄を選ぶ ──────────────────────────────────────
@@ -55,7 +55,7 @@ print("=" * 50)
 
 # ── 記事生成 ─────────────────────────────────────────────────
 print("\n📝 Claude Haiku で記事を生成中...")
-title, note_body, x_text = _generate_article(
+title, note_body, x_text, product_urls = _generate_article(
     TEST_SYMBOL, change_pct, current, predicted, target_date
 )
 
@@ -63,6 +63,9 @@ print("\n【タイトル】")
 print(title)
 print("\n【note本文（先頭200字）】")
 print(note_body[:200] + "...")
+print(f"\n【商品OGPカード】{len(product_urls)}件")
+for url in product_urls:
+    print(f"  {url}")
 print("\n【X投稿文】")
 print(x_text)
 print()
@@ -74,13 +77,13 @@ if answer != "y":
     print("キャンセルしました。")
     sys.exit(0)
 
-# ── note 投稿（Playwright 優先 → cookie フォールバック） ────────
+# ── note 投稿（保存済みセッション優先 → cookie フォールバック） ──
 print("\n📤 note に投稿中...")
 thumbnail_bytes = _load_thumbnail()
 
-if NOTE_EMAIL and NOTE_PASSWORD:
-    print("   → Playwright（メール/パスワード）で投稿します")
-    note_url = _post_note_playwright(title, note_body, info["hashtags"], thumbnail_bytes)
+if _load_note_session():
+    print("   → Playwright（保存セッション）で投稿します")
+    note_url = _post_note_playwright(title, note_body, info["hashtags"], thumbnail_bytes, product_urls)
 else:
     print("   → Cookie 方式で投稿します（NOTE_SESSION_COOKIE）")
     eyecatch_key = _upload_note_image(thumbnail_bytes)
