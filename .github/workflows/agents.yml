@@ -33,20 +33,28 @@ jobs:
       - name: Install or validate CmdStan
         run: |
           python -c "
-          import cmdstanpy
-          try:
-              path = cmdstanpy.cmdstan_path()
-              # 実際にコンパイルできるか確認
-              from prophet import Prophet
-              import pandas as pd, numpy as np
-              m = Prophet()
-              df = pd.DataFrame({'ds': pd.date_range('2024-01-01', periods=30), 'y': np.ones(30)})
-              m.fit(df)
-              print('CmdStan OK:', path)
-          except Exception as e:
-              print('CmdStan 検証失敗、再インストール:', e)
+          import cmdstanpy, os, pathlib
+          # キャッシュパスを確認
+          cmdstan_dir = pathlib.Path.home() / '.cmdstan'
+          installs = sorted(cmdstan_dir.glob('cmdstan-*')) if cmdstan_dir.exists() else []
+          print('~/.cmdstan 内:', [str(p.name) for p in installs])
+          if installs:
+              target = str(installs[-1])
+              cmdstanpy.set_cmdstan_path(target)
+              print('CmdStan パスを設定:', target)
+          else:
+              print('CmdStan が見つからないため新規インストール')
               cmdstanpy.install_cmdstan(version='2.38.0', progress=False)
-              print('CmdStan 再インストール完了')
+          # 動作確認
+          path = cmdstanpy.cmdstan_path()
+          print('CmdStan path:', path)
+          from prophet import Prophet
+          import pandas as pd, numpy as np
+          rng = np.random.default_rng(42)
+          df = pd.DataFrame({'ds': pd.date_range('2024-01-01', periods=30), 'y': rng.random(30) + 100})
+          m = Prophet()
+          m.fit(df)
+          print('Prophet 動作確認 OK')
           " 2>&1
         timeout-minutes: 15
 
