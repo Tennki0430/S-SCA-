@@ -30,10 +30,25 @@ jobs:
           path: ~/.cmdstan
           key: cmdstan-${{ runner.os }}-2.38.0
 
-      - name: Install CmdStan
-        if: steps.cache-cmdstan.outputs.cache-hit != 'true'
-        run: python -c "import cmdstanpy; cmdstanpy.install_cmdstan(version='2.38.0', progress=False)"
-        timeout-minutes: 12
+      - name: Install or validate CmdStan
+        run: |
+          python -c "
+          import cmdstanpy
+          try:
+              path = cmdstanpy.cmdstan_path()
+              # 実際にコンパイルできるか確認
+              from prophet import Prophet
+              import pandas as pd, numpy as np
+              m = Prophet()
+              df = pd.DataFrame({'ds': pd.date_range('2024-01-01', periods=30), 'y': np.ones(30)})
+              m.fit(df)
+              print('CmdStan OK:', path)
+          except Exception as e:
+              print('CmdStan 検証失敗、再インストール:', e)
+              cmdstanpy.install_cmdstan(version='2.38.0', progress=False)
+              print('CmdStan 再インストール完了')
+          " 2>&1
+        timeout-minutes: 15
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
