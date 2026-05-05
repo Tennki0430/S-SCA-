@@ -9,6 +9,8 @@ jobs:
   run-agents:
     runs-on: ubuntu-latest
     timeout-minutes: 20     # CmdStan キャッシュミス時のインストールを考慮して20分に設定
+    permissions:
+      contents: write        # dashboard の git push に必要
 
     steps:
       - name: Checkout
