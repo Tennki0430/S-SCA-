@@ -117,6 +117,18 @@ jobs:
           AFFILIATE_THRESHOLD_PCT: ${{ secrets.AFFILIATE_THRESHOLD_PCT }}
         run: python main.py
 
+      - name: Deploy dashboard to GitHub Pages
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python scripts/build_dashboard.py
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --cached --quiet || git commit -m "ci: update dashboard [skip ci]"
+          git push
+
       - name: Notify Discord on failure
         if: failure()
         env:

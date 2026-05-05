@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S-SCA｜AIコモディティ価格予測ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1923;
+      --card: #162030;
+      --border: #1e2d3d;
+      --text: #e8edf2;
+      --muted: #8a9bb0;
+      --up: #e8526a;
+      --down: #4a90d9;
+      --accent: #f5a623;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 6px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto 32px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    /* 予測カード */
+    .pred-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .pred-row:last-child { border-bottom: none; }
+    .pred-symbol { font-weight: 600; font-size: 0.95rem; }
+    .pred-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .pred-pct {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .up   { color: var(--up); }
+    .down { color: var(--down); }
+    /* グラフカード */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 1100px;
+      margin: 0 auto 20px;
+    }
+    .chart-card h2 {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    /* 精度テーブル */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 8px 8px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    .mape-good { color: #7ed321; }
+    .mape-ok   { color: var(--accent); }
+    .mape-bad  { color: var(--up); }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 40px;
+    }
+    #loading { text-align: center; color: var(--muted); padding: 60px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>S-SCA <span class="badge">AI</span></h1>
+  <p>Sentient Supply-Chain Agent｜コモディティ価格予測ダッシュボード</p>
+  <p id="updated" style="margin-top:4px;"></p>
+</header>
+
+<div id="loading">データを読み込み中…</div>
+<div id="main" style="display:none;">
+
+  <!-- 現在の予測カード -->
+  <div class="grid" id="pred-cards"></div>
+
+  <!-- 予測変化率グラフ -->
+  <div class="chart-card">
+    <h2>14日後の価格変化率予測</h2>
+    <canvas id="predChart" height="100"></canvas>
+  </div>
+
+  <!-- 精度推移グラフ -->
+  <div class="chart-card">
+    <h2>予測精度の推移（MAPE — 低いほど精度が高い）</h2>
+    <canvas id="mapeChart" height="100"></canvas>
+  </div>
+
+  <!-- 精度テーブル -->
+  <div class="chart-card">
+    <h2>直近の予測精度レポート</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>銘柄</th>
+          <th>評価日</th>
+          <th>MAPE</th>
+          <th>AIの分析コメント（要約）</th>
+        </tr>
+      </thead>
+      <tbody id="accuracy-table"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  データは GitHub Actions により毎時自動更新 ｜
+  予測モデル: Prophet（Meta） ｜
+  © S-SCA Project
+</footer>
+
+<script>
+// ============================================================
+// 設定（GitHub Pages の repository variable か直書きで入れる）
+// ============================================================
+const SUPABASE_URL = "%%SUPABASE_URL%%";
+const SUPABASE_ANON_KEY = "%%SUPABASE_ANON_KEY%%";
+
+const SYMBOL_JP = {
+  Wheat: "小麦", Corn: "コーン", Naphtha: "ナフサ",
+  Copper: "銅", Lithium: "リチウム"
+};
+const COLORS = ["#e8526a","#4a90d9","#f5a623","#7ed321","#bd10e0"];
+
+async function fetchJson(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    }
+  });
+  return res.json();
+}
+
+function mapeClass(v) {
+  if (v < 8)  return "mape-good";
+  if (v < 15) return "mape-ok";
+  return "mape-bad";
+}
+
+function sign(v) { return v >= 0 ? `+${v.toFixed(1)}` : v.toFixed(1); }
+
+async function main() {
+  // 最新予測（銘柄ごとに最新1件）
+  const preds = await fetchJson(
+    "prediction_log?select=symbol,predicted_price,current_price,target_date,timestamp" +
+    "&order=timestamp.desc&limit=50"
+  );
+
+  // 銘柄ごとに最新1件だけ残す
+  const latest = {};
+  for (const r of preds) {
+    if (!latest[r.symbol]) latest[r.symbol] = r;
+  }
+  const latestList = Object.values(latest)
+    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+
+  // 精度ログ（直近30件）
+  const feedbacks = await fetchJson(
+    "feedback_log?select=symbol,timestamp,error_rate,self_reflection_notes" +
+    "&order=timestamp.desc&limit=50"
+  );
+
+  // ---- 予測カード描画 ----
+  const cardContainer = document.getElementById("pred-cards");
+  for (const p of latestList) {
+    const pct = (p.predicted_price - p.current_price) / p.current_price * 100;
+    const isUp = pct >= 0;
+    const jp = SYMBOL_JP[p.symbol] || p.symbol;
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <h2>${jp}（${p.symbol}）</h2>
+      <div class="pred-row">
+        <div>
+          <div class="pred-symbol">現在価格</div>
+          <div class="pred-sub">${new Date(p.timestamp).toLocaleDateString("ja-JP")}</div>
+        </div>
+        <div class="pred-pct">${p.current_price.toFixed(2)}</div>
+      </div>
+      <div class="pred-row">
+        <div>
+          <div class="pred-symbol">14日後予測</div>
+          <div class="pred-sub">${p.target_date}</div>
+        </div>
+        <div class="pred-pct">${p.predicted_price.toFixed(2)}</div>
+      </div>
+      <div class="pred-row">
+        <div class="pred-symbol">予測変化率</div>
+        <div class="pred-pct ${isUp ? "up" : "down"}">${sign(pct)}%</div>
+      </div>
+    `;
+    cardContainer.appendChild(card);
+  }
+
+  // ---- 予測変化率グラフ ----
+  const predLabels = latestList.map(p => SYMBOL_JP[p.symbol] || p.symbol);
+  const predValues = latestList.map(p =>
+    (p.predicted_price - p.current_price) / p.current_price * 100
+  );
+  new Chart(document.getElementById("predChart"), {
+    type: "bar",
+    data: {
+      labels: predLabels,
+      datasets: [{
+        label: "予測変化率（%）",
+        data: predValues,
+        backgroundColor: predValues.map(v => v >= 0 ? "#e8526a99" : "#4a90d999"),
+        borderColor: predValues.map(v => v >= 0 ? "#e8526a" : "#4a90d9"),
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => `${sign(ctx.parsed.y)}%` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: "#8a9bb0" }, grid: { color: "#1e2d3d" } },
+        y: {
+          ticks: { color: "#8a9bb0", callback: v => `${v}%` },
+          grid: { color: "#1e2d3d" }
+        }
+      }
+    }
+  });
+
+  // ---- MAPE推移グラフ ----
+  const symbols = [...new Set(feedbacks.map(f => f.symbol))].sort();
+  const mapeDatasets = symbols.map((sym, i) => {
+    const rows = feedbacks
+      .filter(f => f.symbol === sym)
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    return {
+      label: SYMBOL_JP[sym] || sym,
+      data: rows.map(r => ({ x: r.timestamp.slice(0, 10), y: r.error_rate })),
+      borderColor: COLORS[i % COLORS.length],
+      backgroundColor: "transparent",
+      pointRadius: 4,
+      tension: 0.3,
+    };
+  });
+  new Chart(document.getElementById("mapeChart"), {
+    type: "line",
+    data: { datasets: mapeDatasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: "#8a9bb0" } },
+        tooltip: {
+          callbacks: { label: ctx => `MAPE: ${ctx.parsed.y.toFixed(1)}%` }
+        }
+      },
+      scales: {
+        x: { type: "category", ticks: { color: "#8a9bb0" }, grid: { color: "#1e2d3d" } },
+        y: {
+          ticks: { color: "#8a9bb0", callback: v => `${v}%` },
+          grid: { color: "#1e2d3d" }
+        }
+      }
+    }
+  });
+
+  // ---- 精度テーブル ----
+  const tbody = document.getElementById("accuracy-table");
+  for (const f of feedbacks.slice(0, 20)) {
+    const jp = SYMBOL_JP[f.symbol] || f.symbol;
+    const date = new Date(f.timestamp).toLocaleDateString("ja-JP");
+    const mape = f.error_rate?.toFixed(1) ?? "—";
+    const cls  = f.error_rate ? mapeClass(f.error_rate) : "";
+    const note = f.self_reflection_notes
+      ? f.self_reflection_notes.slice(0, 60) + "…"
+      : "—";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${jp}</td>
+      <td>${date}</td>
+      <td class="${cls}">${mape}%</td>
+      <td style="color:#8a9bb0;font-size:0.8rem;">${note}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // ---- 更新日時 ----
+  document.getElementById("updated").textContent =
+    `最終更新: ${new Date().toLocaleString("ja-JP")}`;
+
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("main").style.display    = "block";
+}
+
+main().catch(e => {
+  document.getElementById("loading").textContent = "データ読み込みエラー: " + e.message;
+});
+</script>
+</body>
+</html>
