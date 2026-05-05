@@ -3,368 +3,480 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>S-SCA｜AIコモディティ価格予測ダッシュボード</title>
+  <title>S-SCA｜AIコモディティ価格予測</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg: #0f1923;
-      --card: #162030;
-      --border: #1e2d3d;
-      --text: #e8edf2;
-      --muted: #8a9bb0;
-      --up: #e8526a;
-      --down: #4a90d9;
-      --accent: #f5a623;
+      --bg: #080C14; --surface: #0E1622; --card: #111D2E;
+      --border: #1A2B40; --text: #E8EDF2; --muted: #4A6080; --dim: #243044;
+      --green: #22C55E; --red: #E05A6A; --blue: #4A90D9; --gold: #D4A843; --purple: #A855F7;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      min-height: 100vh;
-      padding: 24px 16px;
-    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+    /* ── Header ── */
     header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-    header h1 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-    }
-    header p {
-      color: var(--muted);
-      font-size: 0.85rem;
-      margin-top: 6px;
-    }
-    .badge {
-      display: inline-block;
-      background: var(--accent);
-      color: #000;
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 20px;
-      margin-left: 8px;
-      vertical-align: middle;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-      max-width: 1100px;
-      margin: 0 auto 32px;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-    }
-    .card h2 {
-      font-size: 0.8rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    /* 予測カード */
-    .pred-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 0;
+      background: linear-gradient(160deg, #0B1628 0%, #080C14 100%);
       border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
     }
-    .pred-row:last-child { border-bottom: none; }
-    .pred-symbol { font-weight: 600; font-size: 0.95rem; }
-    .pred-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
-    .pred-pct {
-      font-size: 1.1rem;
-      font-weight: 700;
-    }
-    .up   { color: var(--up); }
-    .down { color: var(--down); }
-    /* グラフカード */
-    .chart-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      max-width: 1100px;
-      margin: 0 auto 20px;
-    }
-    .chart-card h2 {
-      font-size: 0.8rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 16px;
-    }
-    /* 精度テーブル */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-    }
-    th {
-      text-align: left;
-      color: var(--muted);
-      font-size: 0.75rem;
-      padding: 6px 8px;
-      border-bottom: 1px solid var(--border);
-    }
-    td { padding: 8px 8px; border-bottom: 1px solid var(--border); }
-    tr:last-child td { border-bottom: none; }
-    .mape-good { color: #7ed321; }
-    .mape-ok   { color: var(--accent); }
-    .mape-bad  { color: var(--up); }
-    footer {
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.75rem;
-      margin-top: 40px;
-    }
-    #loading { text-align: center; color: var(--muted); padding: 60px; }
+    .logo { font-size: 1.35rem; font-weight: 800; letter-spacing: .06em;
+      background: linear-gradient(90deg, #E8EDF2, #7AAFD4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .logo-sub { font-size: .7rem; color: var(--muted); letter-spacing: .08em; margin-top: 3px; }
+    .live-pill { display: flex; align-items: center; gap: 6px; background: rgba(34,197,94,.08);
+      border: 1px solid rgba(34,197,94,.25); border-radius: 20px; padding: 4px 12px; font-size: .7rem; color: var(--green); }
+    .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Stats bar ── */
+    .stats-bar { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+    .stat { flex: 1; min-width: 130px; padding: 13px 20px; border-right: 1px solid var(--border); }
+    .stat:last-child { border-right: none; }
+    .stat-l { font-size: .63rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 5px; }
+    .stat-v { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+    .stat-s { font-size: .65rem; color: var(--muted); margin-top: 3px; }
+    .cg { color: var(--green); } .cr { color: var(--red); } .cb { color: var(--blue); } .cgd { color: var(--gold); }
+
+    /* ── Layout ── */
+    .main { max-width: 1280px; margin: 0 auto; padding: 24px 20px; }
+    .sec { font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
+      margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .sec::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── Symbol cards ── */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+      position: relative; overflow: hidden; transition: transform .2s, border-color .2s; }
+    .card:hover { transform: translateY(-2px); border-color: #2A4A70; }
+    .card-top { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+    .card-en { font-size: .62rem; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+    .card-jp { font-size: .95rem; font-weight: 700; margin: 3px 0 10px; }
+    .card-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .card-dl { font-size: .68rem; color: var(--muted); }
+    .card-dv { font-size: .82rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .card-pct { font-size: 1.35rem; font-weight: 800; margin: 8px 0 6px; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+    .b-ok { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .b-ng { background: rgba(224,90,106,.12); color: var(--red); border: 1px solid rgba(224,90,106,.3); }
+    .b-nt { background: rgba(74,144,217,.12); color: var(--blue); border: 1px solid rgba(74,144,217,.3); }
+    .mape-row { display: flex; align-items: center; gap: 6px; font-size: .66rem; color: var(--muted); margin-top: 8px; }
+    .bar-bg { flex: 1; height: 3px; background: var(--dim); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+
+    /* ── Chart box ── */
+    .cbox { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+    .cbox-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+    .cbox-t { font-size: .88rem; font-weight: 700; }
+    .cbox-s { font-size: .68rem; color: var(--muted); margin-top: 3px; }
+    .cbox-note { font-size: .65rem; color: var(--muted); font-style: italic; }
+
+    /* ── Two col ── */
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+    @media (max-width: 780px) { .two { grid-template-columns: 1fr; } }
+
+    /* ── Tables ── */
+    .dt { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    .dt th { text-align: left; font-size: .63rem; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--muted); padding: 7px 9px; border-bottom: 1px solid var(--border); }
+    .dt td { padding: 9px 9px; border-bottom: 1px solid rgba(26,43,64,.6); font-variant-numeric: tabular-nums; }
+    .dt tr:last-child td { border-bottom: none; }
+    .dt tr:hover td { background: rgba(255,255,255,.02); }
+    .chip { display: inline-block; font-size: .65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+    .chip-g { background: rgba(34,197,94,.12); color: var(--green); }
+    .chip-y { background: rgba(212,168,67,.12); color: var(--gold); }
+    .chip-r { background: rgba(224,90,106,.12); color: var(--red); }
+
+    /* ── Activity feed ── */
+    .feed { list-style: none; }
+    .feed-li { display: flex; gap: 11px; padding: 11px 0; border-bottom: 1px solid rgba(26,43,64,.6); }
+    .feed-li:last-child { border-bottom: none; }
+    .feed-ico { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: .65rem; font-weight: 700; flex-shrink: 0; }
+    .ico-a { background: rgba(212,168,67,.15); color: var(--gold); border: 1px solid rgba(212,168,67,.3); }
+    .ico-c { background: rgba(74,144,217,.15); color: var(--blue); border: 1px solid rgba(74,144,217,.3); }
+    .feed-t { font-size: .78rem; font-weight: 600; margin-bottom: 3px; }
+    .feed-s { font-size: .68rem; color: var(--muted); line-height: 1.5; }
+    .feed-d { font-size: .63rem; color: var(--dim); margin-top: 3px; }
+
+    /* ── PDCA legend ── */
+    .pdca-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+    .legend-i { display: flex; align-items: center; gap: 6px; font-size: .68rem; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-dia { width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
+
+    footer { text-align: center; color: var(--muted); font-size: .7rem; padding: 22px; border-top: 1px solid var(--border); line-height: 2; }
+    footer a { color: var(--blue); text-decoration: none; }
+    #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 14px; color: var(--muted); }
+    .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>S-SCA <span class="badge">AI</span></h1>
-  <p>Sentient Supply-Chain Agent｜コモディティ価格予測ダッシュボード</p>
-  <p id="updated" style="margin-top:4px;"></p>
+  <div>
+    <div class="logo">S-SCA</div>
+    <div class="logo-sub">Sentient Supply-Chain Agent｜コモディティ価格予測 AI</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="updated" style="font-size:.68rem;color:var(--muted)"></div>
+    <div class="live-pill"><div class="pulse"></div>LIVE</div>
+  </div>
 </header>
 
-<div id="loading">データを読み込み中…</div>
-<div id="main" style="display:none;">
+<div class="stats-bar">
+  <div class="stat"><div class="stat-l">平均 MAPE</div><div class="stat-v" id="s-mape">—</div><div class="stat-s">予測誤差率（低いほど良い）</div></div>
+  <div class="stat"><div class="stat-l">改善中の銘柄</div><div class="stat-v cg" id="s-imp">—</div><div class="stat-s">前回より誤差が減少</div></div>
+  <div class="stat"><div class="stat-l">最高精度</div><div class="stat-v cgd" id="s-best">—</div><div class="stat-s">MAPEが最も低い銘柄</div></div>
+  <div class="stat"><div class="stat-l">稼働日数</div><div class="stat-v" id="s-days">—</div><div class="stat-s">予測開始から</div></div>
+  <div class="stat"><div class="stat-l">PDCA 実行回数</div><div class="stat-v cb" id="s-pdca">—</div><div class="stat-s">AIパラメータ自動調整</div></div>
+</div>
 
-  <!-- 現在の予測カード -->
-  <div class="grid" id="pred-cards"></div>
+<div id="loading"><div class="spinner"></div><div>データを読み込み中…</div></div>
+<div id="main" style="display:none">
+<div class="main">
 
-  <!-- 予測変化率グラフ -->
-  <div class="chart-card">
-    <h2>14日後の価格変化率予測</h2>
-    <canvas id="predChart" height="100"></canvas>
+  <div class="sec">今日の予測</div>
+  <div class="cards" id="cards"></div>
+
+  <!-- PDCA centerpiece chart -->
+  <div class="cbox">
+    <div class="cbox-h">
+      <div>
+        <div class="cbox-t">PDCAサイクルによる予測精度の改善</div>
+        <div class="cbox-s">MAPE推移（低いほど精度が高い）｜◆ = AI がパラメータを自動調整した時点</div>
+      </div>
+      <div class="cbox-note" id="pdca-verdict"></div>
+    </div>
+    <canvas id="pdcaChart" height="85"></canvas>
+    <div class="pdca-legend" id="pdca-legend"></div>
+    <div style="margin-top:10px;font-size:.65rem;color:var(--muted)">
+      ◆マーカーの後に線が下がっていれば、AIの自動調整が精度を改善したことを意味します
+    </div>
   </div>
 
-  <!-- 精度推移グラフ -->
-  <div class="chart-card">
-    <h2>予測精度の推移（MAPE — 低いほど精度が高い）</h2>
-    <canvas id="mapeChart" height="100"></canvas>
+  <div class="two">
+    <!-- Prediction vs Actual -->
+    <div class="cbox" style="margin-bottom:0">
+      <div class="cbox-h">
+        <div>
+          <div class="cbox-t">予測 vs 実績</div>
+          <div class="cbox-s">過去の14日後予測と実際の価格比較</div>
+        </div>
+      </div>
+      <table class="dt">
+        <thead><tr><th>銘柄</th><th>目標日</th><th>予測</th><th>実績</th><th>誤差</th></tr></thead>
+        <tbody id="pva-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="cbox" style="margin-bottom:0">
+      <div class="cbox-h">
+        <div>
+          <div class="cbox-t">PDCAアクティビティ</div>
+          <div class="cbox-s">AI によるパラメータ調整履歴</div>
+        </div>
+      </div>
+      <ul class="feed" id="feed"></ul>
+    </div>
   </div>
 
-  <!-- 精度テーブル -->
-  <div class="chart-card">
-    <h2>直近の予測精度レポート</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>銘柄</th>
-          <th>評価日</th>
-          <th>MAPE</th>
-          <th>AIの分析コメント（要約）</th>
-        </tr>
-      </thead>
-      <tbody id="accuracy-table"></tbody>
+  <!-- Accuracy log -->
+  <div class="cbox" style="margin-top:18px">
+    <div class="cbox-h">
+      <div>
+        <div class="cbox-t">精度評価ログ</div>
+        <div class="cbox-s">直近の予測誤差と AI 分析コメント</div>
+      </div>
+    </div>
+    <table class="dt">
+      <thead><tr><th>銘柄</th><th>評価日</th><th>MAPE</th><th>AI の分析</th><th>パラメータ調整</th></tr></thead>
+      <tbody id="log-body"></tbody>
     </table>
   </div>
 
 </div>
+</div>
 
 <footer>
-  データは GitHub Actions により毎時自動更新 ｜
-  予測モデル: Prophet（Meta） ｜
-  © S-SCA Project
+  毎時 GitHub Actions により自動更新｜予測: Prophet（Meta）＋外生変数 8本（VIX・BDI・Gold・Oil・DXY 等）<br>
+  ダッシュボード: <a href="https://tennki0430.github.io/S-SCA-/">https://tennki0430.github.io/S-SCA-/</a>｜
+  <a href="https://github.com/Tennki0430/S-SCA-">GitHub</a>｜© S-SCA Project
 </footer>
 
 <script>
-// ============================================================
-// 設定（GitHub Pages の repository variable か直書きで入れる）
-// ============================================================
 const SUPABASE_URL = "https://tuwdhgjkzkvcxxxaoyud.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1d2RoZ2premt2Y3h4eGFveXVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTkwNjksImV4cCI6MjA5MjY5NTA2OX0.csi_6hjIg2bbt_IgyKfs8iAMK_cw7qSA5qyIGPaJAqE";
 
-const SYMBOL_JP = {
-  Wheat: "小麦", Corn: "コーン", Naphtha: "ナフサ",
-  Copper: "銅", Lithium: "リチウム"
-};
-const COLORS = ["#e8526a","#4a90d9","#f5a623","#7ed321","#bd10e0"];
+const JP = { Wheat:"小麦", Corn:"コーン", Naphtha:"ナフサ", Copper:"銅", Lithium:"リチウム" };
+const SYMS = ["Wheat","Corn","Naphtha","Copper","Lithium"];
+const COLORS = ["#E05A6A","#4A90D9","#D4A843","#22C55E","#A855F7"];
 
-async function fetchJson(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    }
+async function api(path) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
   });
-  return res.json();
+  return r.json();
 }
 
-function mapeClass(v) {
-  if (v < 8)  return "mape-good";
-  if (v < 15) return "mape-ok";
-  return "mape-bad";
-}
-
+function mc(v) { return v < 8 ? "chip-g" : v < 15 ? "chip-y" : "chip-r"; }
+function mcolor(v) { return v < 8 ? "var(--green)" : v < 15 ? "var(--gold)" : "var(--red)"; }
 function sign(v) { return v >= 0 ? `+${v.toFixed(1)}` : v.toFixed(1); }
+function jdate(ts) { return new Date(ts).toLocaleDateString("ja-JP",{month:"numeric",day:"numeric"}); }
+function parsePU(raw) {
+  if (!raw) return null;
+  try { const o = typeof raw === "string" ? JSON.parse(raw) : raw; return Object.keys(o).length ? o : null; }
+  catch { return null; }
+}
 
 async function main() {
-  // 最新予測（銘柄ごとに最新1件）
-  const preds = await fetchJson(
-    "prediction_log?select=symbol,predicted_price,current_price,target_date,timestamp" +
-    "&order=timestamp.desc&limit=50"
-  );
+  const [preds, feedbacks, market] = await Promise.all([
+    api("prediction_log?select=symbol,predicted_price,current_price,target_date,timestamp&order=timestamp.desc&limit=200"),
+    api("feedback_log?select=symbol,timestamp,error_rate,self_reflection_notes,parameter_updates&order=timestamp.desc&limit=200"),
+    api("market_data?select=symbol,timestamp,price&order=timestamp.desc&limit=1000"),
+  ]);
 
-  // 銘柄ごとに最新1件だけ残す
-  const latest = {};
-  for (const r of preds) {
-    if (!latest[r.symbol]) latest[r.symbol] = r;
+  // Latest pred per symbol
+  const latestP = {};
+  for (const p of preds) { if (!latestP[p.symbol]) latestP[p.symbol] = p; }
+
+  // MAPE history per symbol (asc)
+  const mapeH = {};
+  for (const s of SYMS) {
+    mapeH[s] = feedbacks.filter(f => f.symbol === s && f.error_rate != null)
+      .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
   }
-  const latestList = Object.values(latest)
-    .sort((a, b) => a.symbol.localeCompare(b.symbol));
 
-  // 精度ログ（直近30件）
-  const feedbacks = await fetchJson(
-    "feedback_log?select=symbol,timestamp,error_rate,self_reflection_notes" +
-    "&order=timestamp.desc&limit=50"
-  );
+  // Latest & prev MAPE
+  const latestM = {}, prevM = {};
+  for (const s of SYMS) {
+    const h = mapeH[s];
+    if (h.length >= 1) latestM[s] = h[h.length-1].error_rate;
+    if (h.length >= 2) prevM[s] = h[h.length-2].error_rate;
+  }
 
-  // ---- 予測カード描画 ----
-  const cardContainer = document.getElementById("pred-cards");
-  for (const p of latestList) {
-    const pct = (p.predicted_price - p.current_price) / p.current_price * 100;
-    const isUp = pct >= 0;
-    const jp = SYMBOL_JP[p.symbol] || p.symbol;
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <h2>${jp}（${p.symbol}）</h2>
-      <div class="pred-row">
-        <div>
-          <div class="pred-symbol">現在価格</div>
-          <div class="pred-sub">${new Date(p.timestamp).toLocaleDateString("ja-JP")}</div>
+  // Actual price map: sym_date -> price
+  const actualMap = {};
+  for (const m of market) {
+    const k = `${m.symbol}_${m.timestamp.slice(0,10)}`;
+    if (!actualMap[k]) actualMap[k] = m.price;
+  }
+
+  // ── Stats strip ──
+  const mapeVals = SYMS.map(s => latestM[s]).filter(v => v != null);
+  const avgMape = mapeVals.length ? mapeVals.reduce((a,b)=>a+b,0)/mapeVals.length : null;
+  const impCount = SYMS.filter(s => latestM[s] != null && prevM[s] != null && latestM[s] < prevM[s]).length;
+  const bestSym = SYMS.filter(s => latestM[s] != null).sort((a,b) => latestM[a]-latestM[b])[0];
+  const firstTs = preds.length ? preds[preds.length-1].timestamp : null;
+  const days = firstTs ? Math.floor((Date.now()-new Date(firstTs))/86400000) : 0;
+  const pdcaEvents = feedbacks.filter(f => parsePU(f.parameter_updates));
+
+  const smEl = document.getElementById("s-mape");
+  smEl.textContent = avgMape != null ? avgMape.toFixed(1)+"%" : "—";
+  if (avgMape != null) smEl.style.color = mcolor(avgMape);
+  document.getElementById("s-imp").textContent = `${impCount} / ${SYMS.length}銘柄`;
+  document.getElementById("s-best").textContent = bestSym ? (JP[bestSym]||bestSym) : "—";
+  document.getElementById("s-days").textContent = days+"日";
+  document.getElementById("s-pdca").textContent = pdcaEvents.length+"回";
+
+  // ── Symbol cards ──
+  const cardsEl = document.getElementById("cards");
+  for (const [i, sym] of SYMS.entries()) {
+    const pred = latestP[sym];
+    const mape = latestM[sym];
+    const prev = prevM[sym];
+    const improving = mape != null && prev != null && mape < prev;
+    const worsening = mape != null && prev != null && mape > prev;
+    const pct = pred ? (pred.predicted_price - pred.current_price)/pred.current_price*100 : null;
+    const color = COLORS[i];
+    const barW = mape != null ? Math.min(mape*3.5, 100) : 0;
+    const prevBarW = prev != null ? Math.min(prev*3.5, 100) : 0;
+    const badgeCls = improving ? "b-ok" : worsening ? "b-ng" : "b-nt";
+    const badgeTxt = improving ? "✅ 改善中" : worsening ? "⚠️ 要改善" : "— 初回";
+
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <div class="card-top" style="background:linear-gradient(90deg,transparent,${color}60,transparent)"></div>
+      <div class="card-en">${sym}</div>
+      <div class="card-jp">${JP[sym]||sym}</div>
+      ${pred ? `
+        <div class="card-row"><span class="card-dl">現在価格</span><span class="card-dv">${pred.current_price.toFixed(2)}</span></div>
+        <div class="card-row"><span class="card-dl">14日後予測</span><span class="card-dv">${pred.predicted_price.toFixed(2)}</span></div>
+        <div class="card-pct" style="color:${pct>=0?'var(--red)':'var(--blue)'}">${pct!=null?sign(pct)+'%':'—'}</div>
+      ` : '<div style="color:var(--muted);font-size:.78rem;margin-bottom:8px">データなし</div>'}
+      <span class="badge ${badgeCls}">${badgeTxt}</span>
+      ${mape!=null ? `
+        <div class="mape-row">
+          <span style="width:38px">誤差</span>
+          <div class="bar-bg"><div class="bar-fill" style="width:${barW}%;background:${mcolor(mape)}"></div></div>
+          <span style="color:${mcolor(mape)}">${mape.toFixed(1)}%</span>
         </div>
-        <div class="pred-pct">${p.current_price.toFixed(2)}</div>
-      </div>
-      <div class="pred-row">
-        <div>
-          <div class="pred-symbol">14日後予測</div>
-          <div class="pred-sub">${p.target_date}</div>
-        </div>
-        <div class="pred-pct">${p.predicted_price.toFixed(2)}</div>
-      </div>
-      <div class="pred-row">
-        <div class="pred-symbol">予測変化率</div>
-        <div class="pred-pct ${isUp ? "up" : "down"}">${sign(pct)}%</div>
-      </div>
+        ${prev!=null ? `<div class="mape-row">
+          <span style="width:38px">前回</span>
+          <div class="bar-bg"><div class="bar-fill" style="width:${prevBarW}%;background:var(--dim)"></div></div>
+          <span>${prev.toFixed(1)}%</span>
+        </div>` : ''}
+      ` : ''}
     `;
-    cardContainer.appendChild(card);
+    cardsEl.appendChild(div);
   }
 
-  // ---- 予測変化率グラフ ----
-  const predLabels = latestList.map(p => SYMBOL_JP[p.symbol] || p.symbol);
-  const predValues = latestList.map(p =>
-    (p.predicted_price - p.current_price) / p.current_price * 100
-  );
-  new Chart(document.getElementById("predChart"), {
-    type: "bar",
-    data: {
-      labels: predLabels,
-      datasets: [{
-        label: "予測変化率（%）",
-        data: predValues,
-        backgroundColor: predValues.map(v => v >= 0 ? "#e8526a99" : "#4a90d999"),
-        borderColor: predValues.map(v => v >= 0 ? "#e8526a" : "#4a90d9"),
-        borderWidth: 2,
-        borderRadius: 6,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => `${sign(ctx.parsed.y)}%` }
-        }
-      },
-      scales: {
-        x: { ticks: { color: "#8a9bb0" }, grid: { color: "#1e2d3d" } },
-        y: {
-          ticks: { color: "#8a9bb0", callback: v => `${v}%` },
-          grid: { color: "#1e2d3d" }
-        }
-      }
-    }
-  });
+  // ── PDCA Chart ──
+  const datasets = SYMS.map((sym, i) => ({
+    label: JP[sym]||sym,
+    data: mapeH[sym].map(r => ({ x: r.timestamp.slice(0,10), y: r.error_rate })),
+    borderColor: COLORS[i], backgroundColor: COLORS[i]+"18",
+    pointRadius: 4, pointHoverRadius: 7, tension: 0.35, borderWidth: 2, fill: false,
+  }));
 
-  // ---- MAPE推移グラフ ----
-  const symbols = [...new Set(feedbacks.map(f => f.symbol))].sort();
-  const mapeDatasets = symbols.map((sym, i) => {
-    const rows = feedbacks
-      .filter(f => f.symbol === sym)
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    return {
-      label: SYMBOL_JP[sym] || sym,
-      data: rows.map(r => ({ x: r.timestamp.slice(0, 10), y: r.error_rate })),
-      borderColor: COLORS[i % COLORS.length],
-      backgroundColor: "transparent",
-      pointRadius: 4,
-      tension: 0.3,
-    };
-  });
-  new Chart(document.getElementById("mapeChart"), {
+  // Parameter change scatter markers
+  const paramMap = {};
+  for (const f of feedbacks) {
+    if (!parsePU(f.parameter_updates)) continue;
+    const dk = f.timestamp.slice(0,10);
+    if (!paramMap[dk]) paramMap[dk] = 0;
+    const mx = SYMS.reduce((m,s) => { const e=mapeH[s].find(r=>r.timestamp.slice(0,10)===dk); return e?Math.max(m,e.error_rate):m; }, 0);
+    paramMap[dk] = Math.max(paramMap[dk], mx);
+  }
+  const paramPoints = Object.entries(paramMap).map(([x,y])=>({x,y:y+1.5}));
+  if (paramPoints.length) {
+    datasets.push({
+      label: "◆ パラメータ調整", type:"scatter",
+      data: paramPoints,
+      pointStyle: "rectRot", pointRadius: 9, pointHoverRadius: 11,
+      borderColor: "#D4A843", backgroundColor: "#D4A843", showLine: false,
+    });
+  }
+
+  new Chart(document.getElementById("pdcaChart"), {
     type: "line",
-    data: { datasets: mapeDatasets },
+    data: { datasets },
     options: {
       responsive: true,
+      interaction: { mode:"index", intersect:false },
       plugins: {
-        legend: { labels: { color: "#8a9bb0" } },
-        tooltip: {
-          callbacks: { label: ctx => `MAPE: ${ctx.parsed.y.toFixed(1)}%` }
-        }
+        legend: { labels: { color:"#4A6080", font:{size:11}, padding:16 } },
+        tooltip: { callbacks: { label: ctx =>
+          ctx.dataset.label === "◆ パラメータ調整"
+            ? "◆ AI がパラメータを調整"
+            : `${ctx.dataset.label}: MAPE ${ctx.parsed.y?.toFixed(1)}%`
+        }}
       },
       scales: {
-        x: { type: "category", ticks: { color: "#8a9bb0" }, grid: { color: "#1e2d3d" } },
-        y: {
-          ticks: { color: "#8a9bb0", callback: v => `${v}%` },
-          grid: { color: "#1e2d3d" }
-        }
+        x: { type:"category", ticks:{color:"#4A6080",font:{size:10}}, grid:{color:"#1A2B40"} },
+        y: { min:0, title:{display:true,text:"MAPE (%)",color:"#4A6080",font:{size:10}},
+          ticks:{color:"#4A6080",callback:v=>`${v}%`}, grid:{color:"#1A2B40"} }
       }
     }
   });
 
-  // ---- 精度テーブル ----
-  const tbody = document.getElementById("accuracy-table");
-  for (const f of feedbacks.slice(0, 20)) {
-    const jp = SYMBOL_JP[f.symbol] || f.symbol;
-    const date = new Date(f.timestamp).toLocaleDateString("ja-JP");
-    const mape = f.error_rate?.toFixed(1) ?? "—";
-    const cls  = f.error_rate ? mapeClass(f.error_rate) : "";
-    const note = f.self_reflection_notes
-      ? f.self_reflection_notes.slice(0, 60) + "…"
-      : "—";
+  // PDCA verdict
+  const verdictEl = document.getElementById("pdca-verdict");
+  if (avgMape != null) {
+    const t = impCount >= 3 ? "全体的に改善傾向 ✅" : impCount >= 1 ? "一部で改善中 ⚠️" : "改善が必要 ❌";
+    verdictEl.textContent = `${t} | 平均誤差 ${avgMape.toFixed(1)}%`;
+    verdictEl.style.color = impCount >= 3 ? "var(--green)" : impCount >= 1 ? "var(--gold)" : "var(--red)";
+  }
+
+  // Legend
+  const legEl = document.getElementById("pdca-legend");
+  SYMS.forEach((s,i) => {
+    const d = document.createElement("div"); d.className = "legend-i";
+    d.innerHTML = `<div class="legend-dot" style="background:${COLORS[i]}"></div>${JP[s]||s}`;
+    legEl.appendChild(d);
+  });
+  if (paramPoints.length) {
+    const d = document.createElement("div"); d.className = "legend-i";
+    d.innerHTML = `<div class="legend-dia" style="background:var(--gold)"></div>パラメータ調整イベント`;
+    legEl.appendChild(d);
+  }
+
+  // ── Prediction vs Actual ──
+  const today = new Date().toISOString().slice(0,10);
+  const pvaSeen = new Set();
+  const pvaRows = [];
+  const sortedPast = [...preds].filter(p=>p.target_date&&p.target_date<=today)
+    .sort((a,b)=>new Date(b.target_date)-new Date(a.target_date));
+  for (const p of sortedPast) {
+    const k = `${p.symbol}_${p.target_date}`;
+    if (pvaSeen.has(k)) continue;
+    pvaSeen.add(k);
+    const actual = actualMap[k];
+    const err = actual ? Math.abs(p.predicted_price-actual)/actual*100 : null;
+    pvaRows.push({...p, actual, err});
+    if (pvaRows.length >= 15) break;
+  }
+  const pvaEl = document.getElementById("pva-body");
+  if (!pvaRows.length) {
+    pvaEl.innerHTML = `<tr><td colspan="5" style="color:var(--muted);padding:18px;text-align:center">評価可能な過去予測がまだありません</td></tr>`;
+  } else {
+    for (const r of pvaRows) {
+      const tr = document.createElement("tr");
+      const errHtml = r.err != null
+        ? `<span class="chip ${mc(r.err)}">${r.err.toFixed(1)}%</span>`
+        : `<span style="color:var(--muted);font-size:.72rem">—</span>`;
+      tr.innerHTML = `
+        <td>${JP[r.symbol]||r.symbol}</td>
+        <td>${r.target_date}</td>
+        <td>${r.predicted_price.toFixed(2)}</td>
+        <td>${r.actual!=null?r.actual.toFixed(2):'—'}</td>
+        <td>${errHtml}</td>`;
+      pvaEl.appendChild(tr);
+    }
+  }
+
+  // ── Activity feed ──
+  const feedEl = document.getElementById("feed");
+  const actList = feedbacks.slice(0,40).map(f=>({...f,pu:parsePU(f.parameter_updates)}));
+  const actItems = [...actList.filter(a=>a.pu).slice(0,6), ...actList.filter(a=>!a.pu&&a.error_rate!=null).slice(0,5)]
+    .sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,10);
+  if (!actItems.length) {
+    feedEl.innerHTML = `<li style="color:var(--muted);font-size:.78rem;padding:12px 0">アクティビティはまだありません</li>`;
+  } else {
+    for (const a of actItems) {
+      const isAct = !!a.pu;
+      const li = document.createElement("li"); li.className = "feed-li";
+      const puStr = a.pu ? Object.entries(a.pu).map(([k,v])=>`${k}:${v}`).join(" / ") : "";
+      li.innerHTML = `
+        <div class="feed-ico ${isAct?'ico-a':'ico-c'}">${isAct?"A":"C"}</div>
+        <div>
+          <div class="feed-t">${isAct?"パラメータ調整（Act）":"精度評価（Check）"} — ${JP[a.symbol]||a.symbol}</div>
+          <div class="feed-s">
+            ${a.error_rate!=null?`MAPE: <strong>${a.error_rate.toFixed(1)}%</strong>`:''}
+            ${isAct&&puStr?` | 調整: ${puStr}`:''}
+            ${a.self_reflection_notes?`<br>${a.self_reflection_notes.slice(0,70)}…`:''}
+          </div>
+          <div class="feed-d">${new Date(a.timestamp).toLocaleString("ja-JP")}</div>
+        </div>`;
+      feedEl.appendChild(li);
+    }
+  }
+
+  // ── Accuracy log ──
+  const logEl = document.getElementById("log-body");
+  for (const f of feedbacks.slice(0,20)) {
+    const pu = parsePU(f.parameter_updates);
+    const puStr = pu ? Object.entries(pu).map(([k,v])=>`${k}=${v}`).join(", ") : "—";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${jp}</td>
-      <td>${date}</td>
-      <td class="${cls}">${mape}%</td>
-      <td style="color:#8a9bb0;font-size:0.8rem;">${note}</td>
-    `;
-    tbody.appendChild(tr);
+      <td>${JP[f.symbol]||f.symbol}</td>
+      <td>${jdate(f.timestamp)}</td>
+      <td>${f.error_rate!=null?`<span class="chip ${mc(f.error_rate)}">${f.error_rate.toFixed(1)}%</span>`:'—'}</td>
+      <td style="color:var(--muted);font-size:.72rem">${f.self_reflection_notes?f.self_reflection_notes.slice(0,60)+'…':'—'}</td>
+      <td style="color:var(--muted);font-size:.7rem">${puStr}</td>`;
+    logEl.appendChild(tr);
   }
 
-  // ---- 更新日時 ----
-  document.getElementById("updated").textContent =
-    `最終更新: ${new Date().toLocaleString("ja-JP")}`;
-
+  document.getElementById("updated").textContent = `最終更新: ${new Date().toLocaleString("ja-JP")}`;
   document.getElementById("loading").style.display = "none";
-  document.getElementById("main").style.display    = "block";
+  document.getElementById("main").style.display = "block";
 }
 
 main().catch(e => {
-  document.getElementById("loading").textContent = "データ読み込みエラー: " + e.message;
+  document.getElementById("loading").innerHTML = `<div style="color:var(--red)">読み込みエラー: ${e.message}</div>`;
 });
 </script>
 </body>

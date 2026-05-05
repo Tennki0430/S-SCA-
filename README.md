@@ -4,6 +4,12 @@
 
 24時間放置しても GitHub Actions が毎時自動実行し、予測・投稿・自己改善を繰り返す。
 
+## ダッシュボード（GitHub Pages）
+
+**公開URL: https://tennki0430.github.io/S-SCA-/**
+
+予測精度の推移・PDCAサイクルによる自律改善・予測 vs 実績の比較をリアルタイムで確認できる。毎時 GitHub Actions により自動更新。
+
 ---
 
 ## システム全体フロー
