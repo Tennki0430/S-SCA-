@@ -91,7 +91,7 @@ def parse_markdown(md):
             blocks.append(('tweet', line.strip()))
             i += 1
         elif re.match(r'^https?://', line.strip()):
-            # Amazon など任意の URL 単独行 → note が OGP リンクカードに自動変換する
+            # URL 単独行 → OGP カード挿入が必要（Pass 2 で埋め込み UI を使う。execCommand では変換されない）
             blocks.append(('link', line.strip()))
             i += 1
         elif line.strip().startswith('<!--'):

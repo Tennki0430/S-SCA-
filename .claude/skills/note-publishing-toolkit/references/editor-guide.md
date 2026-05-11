@@ -186,7 +186,10 @@ mcp__chrome-devtools__wait_for → ["記事タイトル","本文を入力","ロ�
 - ❌ `press_key("Enter")` 単独でも段落分割しない
 - ✅ `evaluate_script` 内で `document.execCommand('insertText', false, text)` + `document.execCommand('insertParagraph')` を交互に呼ぶ
 
-URL を単独行で書くとリンクカードに自動展開される (これは type_text でも動く)。
+**⚠️ URL のリンクカード自動展開について:**
+- `execCommand('insertText')` でテキスト挿入した URL → **OGP カードにならない**（プレーンテキスト）
+- `type_text` で直接入力した URL → ブラウザの入力イベントが発火するため変換される場合があるが不安定
+- **確実な方法**: 下記「OGP リンクカード（埋め込み）挿入」手順を使う
 
 ## リッチフォーマット適用
 
@@ -416,9 +419,31 @@ pkill -f "chrome-devtools-mcp/chrome-profile"
 フローティングツールバーのボタンはuid指定だとタイムアウトしやすい。
 `evaluate_script` でJavaScriptから `document.querySelectorAll('button')` → `.click()` を使う。
 
+### OGP リンクカード（埋め込み）挿入
+
+`execCommand` でテキスト挿入しても OGP カードにはならない。必ず下記 UI 操作を使う:
+
+```
+1. カーソルを空段落（または URL テキストを削除した段落）に置く
+2. 段落左の [+]（aria-label="メニューを開く"）をクリック
+   → evaluate_script: document.querySelector('[aria-label="メニューを開く"]').click()
+3. 「埋め込み」をクリック
+   → evaluate_script: Array.from(document.querySelectorAll('button,li,span'))
+       .find(el => el.textContent.trim() === '埋め込み')?.click()
+4. wait_for → TEXTAREA[placeholder="https://example.com"] 出現
+5. fill → URL を入力（Amazon は /dp/ASIN/?tag=xxx 形式が必須）
+6. press_key → Enter
+7. wait_for → 1500ms（OGP 取得・レンダリング待ち）
+```
+
+Amazon URL の注意:
+- `/s?k=検索` → OGP ❌（検索ページは Amazon が OGP ブロック）
+- `/dp/ASIN/` → OGP ✅（商品ページは画像・タイトル付きカード）
+
 ### リンクカードが展開されない
 
 URLを単独の行（段落）に入力する必要がある。テキストと同じ行に書くとインラインリンクになる。
+また Amazon の場合は `/dp/ASIN/` 形式の商品ページ URL を使うこと（検索 URL は OGP 非対応）。
 
 ### デザイン崩れの自動修復（★入稿後に必ず実行★）
 

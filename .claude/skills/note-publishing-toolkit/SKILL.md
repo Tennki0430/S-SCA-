@@ -83,13 +83,65 @@ python3 .claude/skills/note-publishing-toolkit/scripts/note-publish.py \
 ### 自動生成ドラフトに含まれる Amazon リンク
 
 ドラフトの `## おすすめ商品（値上がり前に）` セクションに Amazon アフィリエイト URL が 1 行 1 URL で記載されている。
-note エディタは URL を単独行に入力すると自動で OGP リンクカードに変換するため、**入稿時にそのまま `link` ブロックとして貼り付ける**だけでよい。
 
-Step 6-4 Pass 2 の `link` ブロック処理:
+**⚠️ 重要:** `execCommand('insertText')` でテキストとして流し込んだ URL は OGP カードに**ならない**。
+OGP カード挿入には「埋め込み」UI（+ ボタン → 埋め込み → URL 入力）を使う必要がある。
+
+Step 6-4 の `link` ブロック処理:
 ```
-kind: 'link' → Pass 1 でテキストとして流し込み済み → Pass 2 では何もしない
-               （URL 単独行はそのまま note が OGP カードに変換する）
+kind: 'link'
+  → Pass 1: URL テキストとして流し込む（段落の位置マーカーとして）
+  → Pass 2: 下記の埋め込み UI 手順で OGP カードに置き換える
 ```
+
+#### link ブロックを OGP カードに変換する手順（Pass 2、URL ごとに繰り返す）
+
+```javascript
+// Step 1: URL テキストが入った段落を空にする
+() => {
+  const url = "https://...";  // 対象 URL
+  const editor = document.querySelector('.ProseMirror');
+  const para = Array.from(editor.querySelectorAll('p')).find(p => p.textContent.trim() === url);
+  if (!para) return 'not found';
+  para.focus();
+  const range = document.createRange();
+  range.selectNodeContents(para);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+  document.execCommand('delete');
+  return 'cleared';
+}
+```
+
+```
+// Step 2: 空段落の左に出る「+」ボタンをクリック
+mcp__chrome-devtools__evaluate_script:
+  document.querySelector('[aria-label="メニューを開く"]').click()
+
+// Step 3: 「埋め込み」メニュー項目をクリック
+mcp__chrome-devtools__wait_for → メニュー表示
+mcp__chrome-devtools__evaluate_script:
+  Array.from(document.querySelectorAll('button,li,span'))
+    .find(el => el.textContent.trim() === '埋め込み')?.click()
+
+// Step 4: TEXTAREA に URL を入力して Enter
+mcp__chrome-devtools__wait_for → 'textarea[placeholder="https://example.com"]'
+mcp__chrome-devtools__fill → textarea に URL を貼り付け
+mcp__chrome-devtools__press_key → Enter
+
+// Step 5: OGP カード表示を確認
+mcp__chrome-devtools__wait_for → 1500ms（レンダリング待ち）
+```
+
+#### Amazon URL の注意事項
+
+| URL 形式 | OGP カード | 理由 |
+|---|---|---|
+| `/s?k=検索キーワード` | ❌ 表示されない | Amazon が検索ページの OGP をブロック |
+| `/dp/ASIN/?tag=xxx` | ✅ 商品画像付きカード | 商品ページは OGP 公開 |
+
+**→ `config/amazon_links.yaml` に `/dp/ASIN/` 形式の URL を設定することが必須。**
+設定がない場合は検索 URL にフォールバックし、OGP カードは表示されない（プレーンリンクになる）。
 
 ### スキップできるステップ一覧
 
