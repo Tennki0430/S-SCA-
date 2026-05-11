@@ -31,11 +31,11 @@ Corn:
 
 Naphtha:
   - name: 洗剤詰め替えまとめ買い
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B0DRCL32GT?tag=tennki7770f-22"  # アリエール ジェルボール 部屋干し×鉄壁バリア 31個
   - name: ゴミ袋・ラップ備蓄
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B0012VQKVO?tag=tennki7770f-22"  # 岩谷マテリアル アイラップ 60枚
   - name: シャンプー詰め替え
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B0DT4WN5D9?tag=tennki7770f-22"  # ANSWER スーパーラメラシャンプー 詰め替え
 
 Lithium:
   - name: ポータブル電源
