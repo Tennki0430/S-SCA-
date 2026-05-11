@@ -19,9 +19,8 @@ X_API_SECRET = os.getenv("X_API_SECRET", "")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 
-# note.com（Playwright セッション方式）
-# セッションは scripts/setup_note_session.py で取得・更新（有効期限 約30日）
-NOTE_USERNAME = os.getenv("NOTE_USERNAME", "")   # note ユーザー名（投稿URL生成用）
+# Jina AI（競合分析・ファクトチェック）
+JINA_API_KEY = os.getenv("JINA_API_KEY", "")
 
 # Amazon アソシエイト
 AMAZON_ASSOCIATE_TAG = os.getenv("AMAZON_ASSOCIATE_TAG", "")

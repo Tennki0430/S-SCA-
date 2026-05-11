@@ -1,4 +1,5 @@
 .env
+.env.local
 venv/
 __pycache__/
 *.pyc
@@ -7,3 +8,11 @@ __pycache__/
 .DS_Store
 .ruff_cache/
 output/
+data/note-images/
+data/input/
+data/output/
+data/thumb_inject.js
+scripts/dev/
+scripts/build_dashboard.py
+scripts/setup_note_session.py
+# note-drafts はリポジトリに含める（GitHub Actions → ローカルで参照するため）

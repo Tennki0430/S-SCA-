@@ -24,15 +24,6 @@ Pillow>=10.0.0
 # SNS 投稿
 tweepy==4.14.0
 
-# Amazon PA API（商品検索・ベストセラー取得）
-python-amazon-paapi>=6.2.0
-
-# ブラウザ自動化（note.com Playwright 投稿）
-playwright>=1.40.0
-
-# 翻訳
-deep-translator>=1.11.4
-
 # テスト
 pytest==8.2.2
 pytest-mock==3.14.0
