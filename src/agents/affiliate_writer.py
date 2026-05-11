@@ -412,6 +412,25 @@ def _notify_discord(symbol: str, change_pct: float, title: str, draft_path: Path
         logger.warning("Discord 通知失敗: %s", e)
 
 
+def _notify_discord_error(symbol: str, error: str, context: str = "") -> None:
+    if not DISCORD_WEBHOOK_URL:
+        return
+    try:
+        requests.post(
+            DISCORD_WEBHOOK_URL,
+            json={"content": (
+                f"🚨 **Affiliate Writer エラー**\n"
+                f"銘柄: **{symbol}**\n"
+                f"エラー: {error}\n"
+                + (f"補足: {context}\n" if context else "")
+                + f"→ GitHub Actions のログを確認してください"
+            )},
+            timeout=15,
+        )
+    except Exception as e:
+        logger.warning("Discord エラー通知失敗: %s", e)
+
+
 def _post_x(text: str) -> None:
     if not all([X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET]):
         logger.info("X API キー未設定。X 投稿をスキップ。")
@@ -468,6 +487,15 @@ def run() -> None:
             # Amazon アフィリエイトリンクを解決
             products = _resolve_products(symbol, info)
 
+            # 全商品が検索URL（/s?k=）の場合は OGP カードが出ないため警告通知
+            search_only = all("/s?" in url or "/s?" in url for _, url in products)
+            if search_only:
+                _notify_discord_error(
+                    symbol,
+                    "全商品が検索URLにフォールバックしました（OGPカード非対応）",
+                    "config/amazon_links.yaml に /dp/ASIN/ 形式のURLを設定すると改善されます",
+                )
+
             # Claude Haiku でタイトル・本文・X短文を生成
             title, note_body, x_text = _generate_texts(
                 symbol, change_pct, current, predicted, target_date, info, products
@@ -475,6 +503,7 @@ def run() -> None:
 
             if not title:
                 logger.warning("[%s] タイトル生成失敗。スキップ。", symbol)
+                _notify_discord_error(symbol, "Claude Haiku によるタイトル生成に失敗しました", "記事がスキップされました")
                 continue
 
             # Amazon リンク付き Markdown 下書きを保存
@@ -495,6 +524,7 @@ def run() -> None:
 
         except Exception as e:
             logger.error("[%s] Affiliate Writer 処理失敗: %s", symbol, e)
+            _notify_discord_error(symbol, str(e), "Affiliate Writer の処理中に予期しないエラーが発生しました")
 
     logger.info("=== Affiliate Writer Agent 完了 ===")
 

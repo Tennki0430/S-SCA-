@@ -7,11 +7,11 @@
 
 Copper:
   - name: 充電式電動工具
-    url: ""   # 例: https://www.amazon.co.jp/dp/B0XXXXXXXXX
+    url: "https://www.amazon.co.jp/dp/B09F9BR4Y1?tag=tennki7770f-22"  # マキタ 充電式震動ドライバドリル HP487DZ
   - name: 高耐久USBケーブル
-    url: ""
+    url: "https://www.amazon.co.jp/s?k=%E9%AB%98%E8%80%90%E4%B9%85+USB%E3%82%B1%E3%83%BC%E3%83%96%E3%83%AB&tag=tennki7770f-22"  # ※商品ページURLに差し替えるとOGPカード表示可
   - name: 延長コード・電線
-    url: ""
+    url: "https://www.amazon.co.jp/s?k=%E5%BB%B6%E9%95%B7%E3%82%B3%E3%83%BC%E3%83%89%E3%83%BB%E9%9B%BB%E7%B7%9A&tag=tennki7770f-22"  # ※同上
 
 Wheat:
   - name: 小麦粉まとめ買い

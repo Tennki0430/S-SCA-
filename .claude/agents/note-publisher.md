@@ -102,6 +102,38 @@ mcp__chrome-devtools__evaluate_script → window.location.href で公開 URL 取
 Chrome DevTools MCP は実 Chrome プロファイルを使用するためボット検知リスクは低い。
 ユーザーが手動で公開する場合は「下書き保存後に Discord で URL を通知」して終了する。
 
+## 予期しないエラー時の Discord 通知
+
+上記の bot 検知以外で処理が失敗・中断した場合も必ず Discord に通知する:
+
+```python
+import requests
+from pathlib import Path
+
+env = {}
+env_file = Path(".env.local") if Path(".env.local").exists() else Path(".env")
+if env_file.exists():
+    for line in env_file.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip().strip('"').strip("'")
+
+webhook = env.get("DISCORD_WEBHOOK_URL", "")
+if webhook:
+    requests.post(webhook, json={"content": (
+        "🚨 **note-publisher エラー**\n"
+        f"ステップ: {失敗したステップ名}\n"
+        f"エラー: {エラーの内容}\n"
+        "→ 手動で確認・再実行してください"
+    )}, timeout=10)
+```
+
+通知が必要なケース:
+- Gemini 画像生成エラー（Step 5）
+- note エディタへの入稿失敗（Step 6）
+- OGP カード挿入が全件失敗した場合（Step 6-4）
+- テーマキューが空の場合：「キューが空です。themes.md にテーマを追加してください」
+
 ## ハードルール
 
 スキル本体のハードルールに加えて以下を厳守:
