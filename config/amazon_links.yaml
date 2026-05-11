@@ -15,11 +15,11 @@ Copper:
 
 Wheat:
   - name: 小麦粉まとめ買い
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B09HSZCH6Y?tag=tennki7770f-22"  # TOMIZ 春よ恋100 国産強力粉 2.5kg
   - name: パスタ・乾麺
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B09SGY7TSY?tag=tennki7770f-22"  # ZENB グルテンフリー 豆100%麺
   - name: 食品備蓄セット
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B09773DGYH?tag=tennki7770f-22"  # パンとごはん1週間 非常食セット
 
 Corn:
   - name: 食用油まとめ買い
