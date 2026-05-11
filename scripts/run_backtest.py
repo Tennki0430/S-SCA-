@@ -22,7 +22,7 @@ import requests
 from evaluators.backtest import BacktestEvaluator
 from src.utils.config import DISCORD_WEBHOOK_URL
 
-OUTPUT_PATH = Path(__file__).parents[1] / "data" / "backtest_results.json"
+OUTPUT_PATH = Path(__file__).parents[1] / "docs" / "data" / "backtest_results.json"
 PASS_THRESHOLD_PCT = 10.0
 
 

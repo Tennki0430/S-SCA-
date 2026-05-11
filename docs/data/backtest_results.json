@@ -1,0 +1,190 @@
+{
+  "run_at": "2026-05-12",
+  "results": [
+    {
+      "symbol": "Wheat",
+      "status": "ok",
+      "avg_mape": 3.33,
+      "windows": 4,
+      "passed": true,
+      "details": [
+        {
+          "anchor_date": "2026-03-26",
+          "target_date": "2026-04-16",
+          "predicted": 599.8892,
+          "actual": 598.5,
+          "mape": 0.23
+        },
+        {
+          "anchor_date": "2026-04-07",
+          "target_date": "2026-04-26",
+          "predicted": 606.9485,
+          "actual": 614.8182,
+          "mape": 1.28
+        },
+        {
+          "anchor_date": "2026-04-16",
+          "target_date": "2026-05-03",
+          "predicted": 567.9385,
+          "actual": 636.0938,
+          "mape": 10.71
+        },
+        {
+          "anchor_date": "2026-04-26",
+          "target_date": "2026-05-10",
+          "predicted": 611.4992,
+          "actual": 618.2333,
+          "mape": 1.09
+        }
+      ]
+    },
+    {
+      "symbol": "Corn",
+      "status": "ok",
+      "avg_mape": 6.08,
+      "windows": 4,
+      "passed": true,
+      "details": [
+        {
+          "anchor_date": "2026-03-26",
+          "target_date": "2026-04-16",
+          "predicted": 482.2686,
+          "actual": 448.5,
+          "mape": 7.53
+        },
+        {
+          "anchor_date": "2026-04-07",
+          "target_date": "2026-04-26",
+          "predicted": 438.3062,
+          "actual": 461.5682,
+          "mape": 5.04
+        },
+        {
+          "anchor_date": "2026-04-16",
+          "target_date": "2026-05-03",
+          "predicted": 428.7833,
+          "actual": 478.75,
+          "mape": 10.44
+        },
+        {
+          "anchor_date": "2026-04-26",
+          "target_date": "2026-05-10",
+          "predicted": 464.0743,
+          "actual": 470.25,
+          "mape": 1.31
+        }
+      ]
+    },
+    {
+      "symbol": "Naphtha",
+      "status": "ok",
+      "avg_mape": 10.92,
+      "windows": 4,
+      "passed": false,
+      "details": [
+        {
+          "anchor_date": "2026-03-26",
+          "target_date": "2026-04-16",
+          "predicted": 3.7962,
+          "actual": 3.1637,
+          "mape": 19.99
+        },
+        {
+          "anchor_date": "2026-04-07",
+          "target_date": "2026-04-26",
+          "predicted": 3.7585,
+          "actual": 3.3332,
+          "mape": 12.76
+        },
+        {
+          "anchor_date": "2026-04-16",
+          "target_date": "2026-05-03",
+          "predicted": 3.2218,
+          "actual": 3.5955,
+          "mape": 10.39
+        },
+        {
+          "anchor_date": "2026-04-26",
+          "target_date": "2026-05-10",
+          "predicted": 3.3977,
+          "actual": 3.3795,
+          "mape": 0.54
+        }
+      ]
+    },
+    {
+      "symbol": "Copper",
+      "status": "ok",
+      "avg_mape": 8.39,
+      "windows": 4,
+      "passed": true,
+      "details": [
+        {
+          "anchor_date": "2026-03-26",
+          "target_date": "2026-04-16",
+          "predicted": 5.0629,
+          "actual": 6.0665,
+          "mape": 16.54
+        },
+        {
+          "anchor_date": "2026-04-07",
+          "target_date": "2026-04-26",
+          "predicted": 5.6278,
+          "actual": 6.0251,
+          "mape": 6.59
+        },
+        {
+          "anchor_date": "2026-04-16",
+          "target_date": "2026-05-03",
+          "predicted": 6.4334,
+          "actual": 5.9811,
+          "mape": 7.56
+        },
+        {
+          "anchor_date": "2026-04-26",
+          "target_date": "2026-05-10",
+          "predicted": 6.4715,
+          "actual": 6.2915,
+          "mape": 2.86
+        }
+      ]
+    },
+    {
+      "symbol": "Lithium",
+      "status": "ok",
+      "avg_mape": 7.64,
+      "windows": 4,
+      "passed": true,
+      "details": [
+        {
+          "anchor_date": "2026-03-26",
+          "target_date": "2026-04-16",
+          "predicted": 67.7233,
+          "actual": 82.31,
+          "mape": 17.72
+        },
+        {
+          "anchor_date": "2026-04-07",
+          "target_date": "2026-04-26",
+          "predicted": 76.9545,
+          "actual": 83.79,
+          "mape": 8.16
+        },
+        {
+          "anchor_date": "2026-04-16",
+          "target_date": "2026-05-03",
+          "predicted": 85.2094,
+          "actual": 88.72,
+          "mape": 3.96
+        },
+        {
+          "anchor_date": "2026-04-26",
+          "target_date": "2026-05-10",
+          "predicted": 90.8402,
+          "actual": 90.17,
+          "mape": 0.74
+        }
+      ]
+    }
+  ]
+}

@@ -131,6 +131,7 @@
   <div class="stat"><div class="stat-l">最高精度</div><div class="stat-v cgd" id="s-best">—</div><div class="stat-s">MAPEが最も低い銘柄</div></div>
   <div class="stat"><div class="stat-l">稼働日数</div><div class="stat-v" id="s-days">—</div><div class="stat-s">予測開始から</div></div>
   <div class="stat"><div class="stat-l">PDCA 実行回数</div><div class="stat-v cb" id="s-pdca">—</div><div class="stat-s">AIパラメータ自動調整</div></div>
+  <div class="stat"><div class="stat-l">バックテスト合格</div><div class="stat-v cg" id="s-bt">—</div><div class="stat-s">過去90日・14日先予測</div></div>
 </div>
 
 <div id="loading"><div class="spinner"></div><div>データを読み込み中…</div></div>
@@ -139,6 +140,22 @@
 
   <div class="sec">今日の予測</div>
   <div class="cards" id="cards"></div>
+
+  <!-- Backtest proof -->
+  <div class="cbox" style="margin-bottom:18px">
+    <div class="cbox-h">
+      <div>
+        <div class="cbox-t">バックテスト精度証明（過去90日・14日先予測）</div>
+        <div class="cbox-s">実際の過去データで予測モデルを検証済み｜MAPE 10%未満を合格とする</div>
+      </div>
+      <div id="bt-summary" style="font-size:.82rem;font-weight:700;color:var(--green)"></div>
+    </div>
+    <div id="bt-bars" style="display:flex;flex-direction:column;gap:14px;margin-top:4px"></div>
+    <div style="margin-top:14px;font-size:.63rem;color:var(--muted)">
+      スライディングウィンドウ：30日の訓練データで14日先を予測→実績と比較を繰り返して平均MAPEを算出
+      ｜最終実行: <span id="bt-run-at">—</span>
+    </div>
+  </div>
 
   <!-- PDCA centerpiece chart -->
   <div class="cbox">
@@ -231,7 +248,50 @@ function parsePU(raw) {
   catch { return null; }
 }
 
+async function renderBacktest() {
+  try {
+    const btData = await fetch('./data/backtest_results.json').then(r => r.json());
+    const results = (btData.results || []).filter(r => r.status === 'ok');
+    const passed = results.filter(r => r.passed);
+    const avg = results.length ? results.reduce((a, b) => a + b.avg_mape, 0) / results.length : null;
+
+    document.getElementById('s-bt').textContent = `${passed.length}/${results.length} 銘柄`;
+    document.getElementById('bt-summary').textContent =
+      `${passed.length}/${results.length} 銘柄合格｜全体平均 MAPE ${avg != null ? avg.toFixed(1)+'%' : '—'}`;
+    document.getElementById('bt-summary').style.color = passed.length >= 4 ? 'var(--green)' : 'var(--gold)';
+    document.getElementById('bt-run-at').textContent = btData.run_at || '—';
+
+    const barsEl = document.getElementById('bt-bars');
+    for (const r of results) {
+      const barW = Math.min(r.avg_mape * 6, 100);
+      const col = r.avg_mape < 8 ? 'var(--green)' : r.avg_mape < 10 ? 'var(--gold)' : 'var(--red)';
+      const icon = r.passed ? '✅' : '❌';
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;gap:12px';
+      div.innerHTML = `
+        <div style="width:72px;font-size:.78rem;font-weight:600">${JP[r.symbol]||r.symbol}</div>
+        <div style="flex:1;height:10px;background:var(--dim);border-radius:5px;overflow:hidden">
+          <div style="width:0%;height:100%;background:${col};border-radius:5px;transition:width 1s ease"
+               data-target="${barW}"></div>
+        </div>
+        <div style="width:52px;font-size:.85rem;font-weight:700;color:${col}">${r.avg_mape.toFixed(1)}%</div>
+        <div style="font-size:.68rem;color:var(--muted)">${icon} ${r.windows}窓</div>`;
+      barsEl.appendChild(div);
+    }
+    // Animate bars after DOM insert
+    requestAnimationFrame(() => {
+      barsEl.querySelectorAll('[data-target]').forEach(el => {
+        el.style.width = el.dataset.target + '%';
+      });
+    });
+  } catch(e) {
+    document.getElementById('bt-bars').innerHTML =
+      '<div style="color:var(--muted);font-size:.78rem">バックテストデータを読み込めませんでした</div>';
+  }
+}
+
 async function main() {
+  renderBacktest();
   const [preds, feedbacks, market] = await Promise.all([
     api("prediction_log?select=symbol,predicted_price,current_price,target_date,timestamp&order=timestamp.desc&limit=200"),
     api("feedback_log?select=symbol,timestamp,error_rate,self_reflection_notes,parameter_updates&order=timestamp.desc&limit=200"),
