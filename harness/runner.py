@@ -9,12 +9,45 @@ A（Act）    → evaluators/llm_judge.py Claude がパラメータ改善案を�
 """
 
 import logging
+from datetime import date
 
+import requests
+
+from src.utils.config import DISCORD_WEBHOOK_URL
 from src.utils.database import keepalive, fetch_latest_params, cleanup_old_market_data
 from harness.reporter import Reporter
 from evaluators.llm_judge import LLMJudge
 
 logger = logging.getLogger(__name__)
+
+
+def _notify_accuracy_results(results: list) -> None:
+    if not DISCORD_WEBHOOK_URL:
+        return
+    if not results:
+        logger.info("照合対象なし（運用14日未満）。Discord 通知スキップ。")
+        return
+
+    passed = sum(1 for r in results if r.passed)
+    failed = len(results) - passed
+    summary = f"✅ {passed}合格 / ❌ {failed}要改善"
+
+    lines = [f"📊 **精度照合レポート** ({date.today()})", f"対象: {len(results)}銘柄　{summary}", ""]
+    for r in results:
+        icon = "🟢" if r.passed else "🔴"
+        lines.append(
+            f"{icon} **{r.symbol}**: 予測 {r.predicted:.2f} → 実績 {r.actual:.2f}"
+            f" | MAPE **{r.error_rate:.1f}%** {'✅' if r.passed else '❌'}"
+        )
+
+    if failed > 0:
+        lines.append("")
+        lines.append("❌ 要改善銘柄 → LLM Judge がパラメータ改善中...")
+
+    try:
+        requests.post(DISCORD_WEBHOOK_URL, json={"content": "\n".join(lines)}, timeout=15)
+    except Exception as e:
+        logger.warning("Discord 精度レポート通知失敗: %s", e)
 
 
 class PipelineRunner:
@@ -54,6 +87,7 @@ class PipelineRunner:
         logger.info("=== 精度照合（Check）開始 ===")
         results = self.reporter.evaluate_and_save()
         logger.info("=== 精度照合 完了（%d 件照合） ===", len(results))
+        _notify_accuracy_results(results)
 
         # --- A: Act（自律改善） ---
         # needs_improvement=True の銘柄（MAPE不合格 OR 方向誤り）に対してのみ分析を実行
