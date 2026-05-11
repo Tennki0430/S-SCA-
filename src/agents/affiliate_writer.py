@@ -26,7 +26,7 @@ from src.utils.config import (
     AFFILIATE_THRESHOLD_PCT,
     DISCORD_WEBHOOK_URL,
 )
-from src.utils.database import fetch_prediction
+from src.utils.database import fetch_prediction, insert_affiliate_log
 
 logger = logging.getLogger(__name__)
 
@@ -227,7 +227,19 @@ def _suggest_products_with_claude(symbol: str, info: dict) -> dict[str, str]:
         return {}
 
 
-def _resolve_products(symbol: str, info: dict) -> list[tuple[str, str]]:
+def _add_campaign(url: str, campaign_id: str) -> str:
+    """Amazon URL にキャンペーン識別パラメータを付与する。
+
+    Amazon Associates 側ではこのパラメータを集計に使わないが、
+    affiliate_log との突き合わせや将来のリダイレクタ導入時に役立つ。
+    """
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}ref=ssca-{campaign_id}"
+
+
+def _resolve_products(
+    symbol: str, info: dict, campaign_id: str
+) -> list[tuple[str, str]]:
     """銘柄ごとの商品名と Amazon アフィリエイト URL のペアを解決する。
 
     解決順: ① YAML 手動 URL → ② Claude 提案の具体的商品名 → ③ 汎用キーワード検索 URL
@@ -238,17 +250,17 @@ def _resolve_products(symbol: str, info: dict) -> list[tuple[str, str]]:
     resolved: list[tuple[str, str]] = []
     for name, kw in info["products"]:
         if symbol_links.get(name):
-            url = _amazon_url(symbol_links[name])
+            url = _add_campaign(_amazon_url(symbol_links[name]), campaign_id)
             resolved.append((name, url))
         elif ai_suggestions.get(name):
             specific_name = ai_suggestions[name]
             asin = _get_asin(specific_name)
-            url = _amazon_url(specific_name, asin=asin)
+            url = _add_campaign(_amazon_url(specific_name, asin=asin), campaign_id)
             resolved.append((specific_name, url))
             time.sleep(1)
         else:
             asin = _get_asin(kw)
-            url = _amazon_url(kw, asin=asin)
+            url = _add_campaign(_amazon_url(kw, asin=asin), campaign_id)
             resolved.append((name, url))
             time.sleep(1)
 
@@ -391,7 +403,9 @@ def _queue_to_themes(
     logger.info("themes.md にエントリを追加: %s", title)
 
 
-def _notify_discord(symbol: str, change_pct: float, title: str, draft_path: Path) -> None:
+def _notify_discord(
+    symbol: str, change_pct: float, title: str, draft_path: Path, campaign_id: str
+) -> None:
     if not DISCORD_WEBHOOK_URL:
         return
     try:
@@ -402,6 +416,7 @@ def _notify_discord(symbol: str, change_pct: float, title: str, draft_path: Path
                 f"銘柄: **{symbol}** / 予測変動: **{change_pct:+.1f}%** (14日後)\n"
                 f"記事タイトル: {title}\n"
                 f"下書き: `{draft_path.name}`\n"
+                f"キャンペーンID: `{campaign_id}` （affiliate_log + Amazon Associates で照合）\n"
                 f"→ 今夜 9:00 JST に note-publisher が自動投稿します\n"
                 f"  （手動投稿: `claude` で `note-publisher` エージェントを実行）"
             )},
@@ -483,12 +498,13 @@ def run() -> None:
             logger.info("[%s] 閾値超え（%+.1f%%）。記事生成開始。", symbol, change_pct)
 
             info = COMMODITY_MAP[symbol]
+            campaign_id = f"{symbol.lower()}-{date.today().isoformat()}"
 
             # Amazon アフィリエイトリンクを解決
-            products = _resolve_products(symbol, info)
+            products = _resolve_products(symbol, info, campaign_id)
 
             # 全商品が検索URL（/s?k=）の場合は OGP カードが出ないため警告通知
-            search_only = all("/s?" in url or "/s?" in url for _, url in products)
+            search_only = all("/s?" in url for _, url in products)
             if search_only:
                 _notify_discord_error(
                     symbol,
@@ -507,15 +523,29 @@ def run() -> None:
                 continue
 
             # Amazon リンク付き Markdown 下書きを保存
-            slug = f"{symbol.lower()}-{date.today().isoformat()}"
+            slug = campaign_id
             markdown = _build_markdown(title, note_body, products)
             draft_path = _save_draft(slug, markdown)
+
+            # affiliate_log に記録（クリック計測の土台）
+            try:
+                insert_affiliate_log(
+                    campaign_id=campaign_id,
+                    symbol=symbol,
+                    change_pct=change_pct,
+                    title=title,
+                    draft_path=str(draft_path),
+                    products=[{"name": n, "url": u} for n, u in products],
+                )
+                logger.info("[%s] affiliate_log に記録: campaign_id=%s", symbol, campaign_id)
+            except Exception as e:
+                logger.warning("[%s] affiliate_log 保存失敗（処理は継続）: %s", symbol, e)
 
             # themes.md に追加（note-publisher エージェントがピックアップ）
             _queue_to_themes(title, symbol, change_pct, target_date, draft_path)
 
             # Discord 通知
-            _notify_discord(symbol, change_pct, title, draft_path)
+            _notify_discord(symbol, change_pct, title, draft_path, campaign_id)
 
             # X 短文アラート（記事下書きへの誘導）
             _post_x(x_text)

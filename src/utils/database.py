@@ -255,3 +255,39 @@ def fetch_recent_news(symbol: str, limit: int = 5) -> list[str]:
         f"{row['headline']}（{row['source']}）" if row.get("source") else row["headline"]
         for row in result.data
     ]
+
+
+# ---------------------------------------------------------------------------
+# affiliate_log
+# ---------------------------------------------------------------------------
+
+def insert_affiliate_log(
+    campaign_id: str,
+    symbol: str,
+    change_pct: float,
+    title: str,
+    draft_path: str,
+    products: list[dict[str, str]],
+) -> dict[str, Any]:
+    """アフィリエイト記事の生成イベントを記録する。"""
+    client = get_client()
+    row = {
+        "campaign_id": campaign_id,
+        "symbol": symbol,
+        "change_pct": change_pct,
+        "title": title,
+        "draft_path": draft_path,
+        "products": products,
+    }
+    result = client.table("affiliate_log").insert(row).execute()
+    return result.data[0]
+
+
+def update_affiliate_log_published(campaign_id: str, note_url: str) -> None:
+    """note-publisher が公開後に note_url と published_at を記録する。"""
+    from datetime import datetime, timezone
+    client = get_client()
+    client.table("affiliate_log").update({
+        "note_url": note_url,
+        "published_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("campaign_id", campaign_id).execute()

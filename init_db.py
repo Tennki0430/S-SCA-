@@ -52,11 +52,27 @@ CREATE TABLE IF NOT EXISTS news_log (
     published_at TIMESTAMPTZ
 );
 
+-- アフィリエイト記事ログ（クリック計測・キャンペーン管理）
+CREATE TABLE IF NOT EXISTS affiliate_log (
+    id           BIGSERIAL PRIMARY KEY,
+    timestamp    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    campaign_id  TEXT NOT NULL,
+    symbol       TEXT NOT NULL,
+    change_pct   NUMERIC,
+    title        TEXT,
+    draft_path   TEXT,
+    note_url     TEXT,
+    published_at TIMESTAMPTZ,
+    products     JSONB DEFAULT '[]'::jsonb
+);
+
 -- インデックス（クエリ高速化）
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol_ts    ON market_data    (symbol, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_prediction_log_symbol_td ON prediction_log (symbol, target_date);
 CREATE INDEX IF NOT EXISTS idx_feedback_log_symbol_ts   ON feedback_log   (symbol, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_news_log_symbol_ts       ON news_log       (symbol, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_affiliate_log_campaign   ON affiliate_log  (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_affiliate_log_symbol_ts  ON affiliate_log  (symbol, timestamp DESC);
 """
 
 
