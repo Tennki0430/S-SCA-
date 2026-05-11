@@ -23,11 +23,11 @@ Wheat:
 
 Corn:
   - name: 食用油まとめ買い
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B0B4NJZY9F?tag=tennki7770f-22"  # JOYL さらさらキャノーラ油
   - name: コーンスターチ
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B004WHUOO4?tag=tennki7770f-22"  # 火乃国食品 コーンスターチ 1kg
   - name: 加工食品備蓄
-    url: ""
+    url: "https://www.amazon.co.jp/dp/B0FHWKRKR4?tag=tennki7770f-22"  # ベースブレッド 詰め合わせ
 
 Naphtha:
   - name: 洗剤詰め替えまとめ買い
