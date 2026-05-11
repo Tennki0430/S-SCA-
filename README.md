@@ -41,6 +41,7 @@ Scout × 4         Oracle        Merchant → evaluators → LLM Judge
 | 収集 | `scout_news` | 各銘柄の最新ニュースを `news_log` に保存 |
 | **P** | `oracle` | Prophet ＋ 外生変数 8本 で 14日後を予測し `prediction_log` に保存 |
 | **D** | `merchant` | Claude Haiku で投稿文生成 → 毎日19:00 JST に Discord / X 投稿 |
+| **D+** | `affiliate_writer` | 予測が閾値（+5%）超えたとき note.com にアフィリエイト記事を自動入稿 |
 | **C** | `evaluators/accuracy` | 14日前の予測 vs 実績を MAPE で採点 |
 | **A** | `evaluators/llm_judge` | Claude Haiku が誤差原因を分析し、改善パラメータを `feedback_log` に保存 |
 
@@ -318,6 +319,12 @@ S-SCA/
 │   ├── multi_factor.py           # 多角的評価（方向/VIX補正/外部ショック/完全性）
 │   └── llm_judge.py              # Claude Haiku によるパラメータ改善提案
 │
+├── .claude/                      # Claude Code エージェント定義
+│   ├── agents/
+│   │   └── note-publisher.md     # note 入稿エージェント（model: haiku）
+│   └── skills/
+│       └── note-publishing-toolkit/  # 入稿スキル（SKILL.md・テンプレ・スクリプト）
+│
 ├── agents/                       # エージェント共通コンポーネント
 │   ├── prompts/
 │   │   └── reflection.py         # LLM Judge 用 Claude プロンプト構築関数
@@ -325,15 +332,11 @@ S-SCA/
 │       ├── cost_policy.md        # Claude API コスト方針（呼び出し箇所を2箇所に限定）
 │       └── data_quality.md       # データ品質規約（最低レコード数・欠損値の扱い）
 │
-├── scripts/                      # 運用・バックテスト用スクリプト（本番パイプライン外）
-│   ├── seed_history.py           # 過去の価格データを market_data に一括投入
-│   ├── seed_predictions.py       # バックテスト予測を prediction_log に投入
-│   ├── seed_feedback.py          # バックテスト feedback_log を生成
-│   ├── enrich_feedback.py        # 既存 feedback_log に LLM 分析を遡及適用
-│   ├── backfill_evaluations.py   # 過去期間の評価を再計算
-│   ├── run_improvement_cycle.py  # 手動でPDCA改善サイクルを単独実行
-│   ├── show_pdca_log.py          # PDCA ログを CLI で確認
-│   └── gas_dashboard.js          # Google Apps Script（Supabase→スプレッドシート同期）
+├── scripts/                      # 運用スクリプト（本番パイプライン外）
+│   ├── post_note.sh              # note.com への手動入稿スクリプト
+│   └── setup_launchd.sh          # macOS launchd による定期実行セットアップ
+│
+├── themes.md                     # note 投稿テーマキュー（チェックリスト形式）
 │
 ├── tests/
 │   ├── test_scout_price.py
@@ -341,8 +344,7 @@ S-SCA/
 │   └── test_database.py
 │
 └── data/
-    ├── input/                    # 手動インポート用（通常は空）
-    └── output/                   # レポート出力用（通常は空）
+    └── note-drafts/              # note 記事ドラフト（Markdown）
 ```
 
 ---
@@ -376,6 +378,33 @@ news_log:       id / timestamp / symbol / headline / url
 | `seasonality_mode` | additive | 価格変動が比率的なら multiplicative |
 | `window_days` | 90 | 学習に使う日数（30〜180）。短いほど直近重視 |
 | `excluded_regressors` | [] | ノイズになっている外生変数を除外するリスト |
+
+---
+
+## note 自動投稿（Phase 4 — 収益化）
+
+予測シグナルが一定以上になったとき、`affiliate_writer` が自動で note.com にアフィリエイト記事を入稿する。
+
+```
+oracle の予測変化率 ≥ AFFILIATE_THRESHOLD_PCT（デフォルト +5%）
+        │
+        ▼
+affiliate_writer がドラフト生成（Claude Haiku）
+        │
+        ▼
+note-publisher エージェント（Claude Haiku）が入稿
+  ├─ Gemini でサムネイル生成
+  ├─ Chrome DevTools MCP で note.com にアップロード
+  └─ Amazon アフィリエイトリンクを OGP カード形式で挿入
+        │
+        ▼
+themes.md をチェック済みに更新 → Discord 通知
+```
+
+**テーマキュー:** `themes.md` に未投稿テーマが一覧されている。エージェントは上から順に処理し、投稿済みにはチェック `[x]` を入れる。
+
+**投稿済み記事:**
+- [銅価格が14日で+10%予測 — 電気工事・電線の「今すぐ仕入れ」ガイド](https://note.com/novel_skink5217/n/n02344d7097b8)（2026-05-11）
 
 ---
 
