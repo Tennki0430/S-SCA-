@@ -105,6 +105,18 @@
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
     .legend-dia { width: 10px; height: 10px; transform: rotate(45deg); border-radius: 1px; }
 
+    /* ── PvA symbol tabs ── */
+    .tab-btn { background: var(--dim); border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 14px; font-size: .72rem; font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+    .tab-btn:hover { border-color: #2A4A70; color: var(--text); }
+    .tab-btn.active { background: rgba(74,144,217,.15); border-color: var(--blue); color: var(--blue); }
+    /* ── Error band ── */
+    .err-band { display: flex; align-items: center; gap: 8px; font-size: .68rem; color: var(--muted); margin-top: 10px; flex-wrap: wrap; }
+    .err-seg { display: flex; align-items: center; gap: 4px; }
+    .err-line { width: 22px; height: 2px; border-radius: 1px; }
+    .err-dash { width: 22px; height: 0; border-top: 2px dashed #D4A843; }
+
     footer { text-align: center; color: var(--muted); font-size: .7rem; padding: 22px; border-top: 1px solid var(--border); line-height: 2; }
     footer a { color: var(--blue); text-decoration: none; }
     #loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 14px; color: var(--muted); }
@@ -170,6 +182,24 @@
     <div class="pdca-legend" id="pdca-legend"></div>
     <div style="margin-top:10px;font-size:.65rem;color:var(--muted)">
       ◆マーカーの後に線が下がっていれば、AIの自動調整が精度を改善したことを意味します
+    </div>
+  </div>
+
+  <!-- ── Prediction vs Actual Time-Series Chart ── -->
+  <div class="cbox" style="margin-bottom:18px">
+    <div class="cbox-h">
+      <div>
+        <div class="cbox-t">予測 vs 実績｜時系列チャート</div>
+        <div class="cbox-s">14日前の予測価格（破線）と実際の価格（実線）を時間軸で比較</div>
+      </div>
+      <div id="pva-err-label" style="font-size:.8rem;font-weight:700"></div>
+    </div>
+    <div id="pva-tabs" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
+    <canvas id="pvaChart" height="95"></canvas>
+    <div class="err-band">
+      <div class="err-seg"><div class="err-line" id="pva-legend-line"></div>実績価格</div>
+      <div class="err-seg"><div class="err-dash"></div>14日後予測</div>
+      <span style="margin-left:6px">点が重なるほど予測精度が高い　|　直近データを時間順に表示</span>
     </div>
   </div>
 
@@ -288,6 +318,134 @@ async function renderBacktest() {
     document.getElementById('bt-bars').innerHTML =
       '<div style="color:var(--muted);font-size:.78rem">バックテストデータを読み込めませんでした</div>';
   }
+}
+
+// ── Prediction vs Actual Time-Series ──
+let pvaChartInstance = null;
+
+function buildPvAChart(sym, allPreds, allMarket) {
+  // actual prices: date → price
+  const actualByDate = {};
+  for (const m of allMarket) {
+    if (m.symbol !== sym) continue;
+    const d = m.timestamp.slice(0, 10);
+    if (!(d in actualByDate)) actualByDate[d] = m.price;
+  }
+
+  // predicted prices: target_date → predicted_price (latest prediction wins)
+  const predByDate = {};
+  const seen = new Set();
+  for (const p of allPreds) {
+    if (p.symbol !== sym || !p.target_date) continue;
+    if (!seen.has(p.target_date)) { seen.add(p.target_date); predByDate[p.target_date] = p.predicted_price; }
+  }
+
+  // Union of dates, sorted, capped at last 60 days
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  let allDates = [...new Set([...Object.keys(actualByDate), ...Object.keys(predByDate)])].sort();
+  const trimmed = allDates.filter(d => new Date(d) >= cutoff);
+  const displayDates = trimmed.length >= 2 ? trimmed : allDates;
+
+  const actualVals = displayDates.map(d => actualByDate[d] ?? null);
+  const predVals   = displayDates.map(d => predByDate[d]   ?? null);
+
+  // Error stats (overlap points only)
+  let errSum = 0, errN = 0;
+  for (const d of displayDates) {
+    if (actualByDate[d] != null && predByDate[d] != null) {
+      errSum += Math.abs(actualByDate[d] - predByDate[d]) / actualByDate[d] * 100;
+      errN++;
+    }
+  }
+  const avgErr = errN > 0 ? errSum / errN : null;
+  const errLabelEl = document.getElementById('pva-err-label');
+  if (avgErr != null) {
+    errLabelEl.textContent = `比較可能: ${errN}点 | 平均誤差 ${avgErr.toFixed(1)}%`;
+    errLabelEl.style.color = mcolor(avgErr);
+  } else {
+    errLabelEl.textContent = '実績との比較データ蓄積中…';
+    errLabelEl.style.color = 'var(--muted)';
+  }
+
+  const symColor = COLORS[SYMS.indexOf(sym)] || '#4A90D9';
+  document.getElementById('pva-legend-line').style.background = symColor;
+
+  const datasets = [
+    {
+      label: '実績価格',
+      data: actualVals,
+      borderColor: symColor,
+      backgroundColor: symColor + '20',
+      borderWidth: 2.5,
+      pointRadius: displayDates.length > 30 ? 2 : 3,
+      pointHoverRadius: 6,
+      tension: 0.3,
+      fill: false,
+      spanGaps: true,
+    },
+    {
+      label: '14日後予測',
+      data: predVals,
+      borderColor: '#D4A843',
+      backgroundColor: '#D4A84318',
+      borderWidth: 2,
+      borderDash: [6, 3],
+      pointRadius: 5,
+      pointStyle: 'circle',
+      pointHoverRadius: 8,
+      tension: 0.3,
+      fill: false,
+      spanGaps: false,
+    },
+  ];
+
+  if (pvaChartInstance) { pvaChartInstance.destroy(); pvaChartInstance = null; }
+  pvaChartInstance = new Chart(document.getElementById('pvaChart'), {
+    type: 'line',
+    data: { labels: displayDates, datasets },
+    options: {
+      responsive: true,
+      animation: { duration: 750, easing: 'easeInOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#4A6080', font: { size: 11 }, padding: 16 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.parsed.y == null) return null;
+              const d = displayDates[ctx.dataIndex];
+              if (ctx.datasetIndex === 1) {
+                const actual = actualByDate[d];
+                const err = actual ? Math.abs(ctx.parsed.y - actual) / actual * 100 : null;
+                return `予測: ${ctx.parsed.y.toFixed(2)}${err != null ? ` (誤差 ${err.toFixed(1)}%)` : ''}`;
+              }
+              return `実績: ${ctx.parsed.y.toFixed(2)}`;
+            },
+            afterBody: items => {
+              const d = displayDates[items[0]?.dataIndex];
+              if (!d) return [];
+              const a = actualByDate[d], p = predByDate[d];
+              if (a != null && p != null) {
+                const diff = ((p - a) / a * 100);
+                return [`誤差: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%`];
+              }
+              return [];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#4A6080', font: { size: 10 }, maxTicksLimit: 12, maxRotation: 30 },
+          grid: { color: '#1A2B4060' }
+        },
+        y: {
+          ticks: { color: '#4A6080', font: { size: 10 }, callback: v => v.toFixed(1) },
+          grid: { color: '#1A2B4060' }
+        }
+      }
+    }
+  });
 }
 
 async function main() {
@@ -453,6 +611,21 @@ async function main() {
     d.innerHTML = `<div class="legend-dia" style="background:var(--gold)"></div>パラメータ調整イベント`;
     legEl.appendChild(d);
   }
+
+  // ── PvA Time-Series Tabs ──
+  const pvaTabsEl = document.getElementById('pva-tabs');
+  SYMS.forEach((sym, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = JP[sym] || sym;
+    btn.onclick = () => {
+      pvaTabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      buildPvAChart(sym, preds, market);
+    };
+    pvaTabsEl.appendChild(btn);
+  });
+  buildPvAChart(SYMS[0], preds, market);
 
   // ── Prediction vs Actual ──
   const today = new Date().toISOString().slice(0,10);
