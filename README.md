@@ -11,19 +11,19 @@
 予測精度の推移・PDCAサイクルによる自律改善・予測 vs 実績の比較をリアルタイムで確認できる。毎時 GitHub Actions により自動更新。
 
 **ダッシュボード搭載機能:**
-- 銘柄ごとのバックテスト精度（MAPE）バーグラフ（5銘柄 / 合格4銘柄）
+- 銘柄ごとのバックテスト精度（MAPE）バーグラフ（5銘柄 / 全銘柄合格）
 - 予測 vs 実績の時系列チャート（銘柄タブ切り替え対応）
 - PDCAサイクルによる自律改善ログの表示
 
-**バックテスト結果（2026-05-12 実施）:**
+**バックテスト結果（2026-05-17 実施）:**
 
 | 銘柄 | 平均MAPE | 判定 |
 |------|---------|------|
-| Wheat | 3.33% | PASS |
-| Corn | 6.08% | PASS |
-| Copper | 8.39% | PASS |
-| Lithium | 7.64% | PASS |
-| Naphtha | 10.92% | FAIL |
+| Wheat | 4.7% | PASS |
+| Corn | 4.4% | PASS |
+| Naphtha | 8.0% | PASS |
+| Copper | 7.0% | PASS |
+| Lithium | 6.0% | PASS |
 
 ---
 
@@ -437,11 +437,11 @@ python scripts/run_backtest.py
 
 | 銘柄 | 平均MAPE | 合否（< 10%） |
 |------|---------|-------------|
-| Wheat | 3.33% | PASS |
-| Corn | 6.08% | PASS |
-| Copper | 8.39% | PASS |
-| Lithium | 7.64% | PASS |
-| Naphtha | 10.92% | FAIL |
+| Wheat | 4.7% | PASS |
+| Corn | 4.4% | PASS |
+| Naphtha | 8.0% | PASS |
+| Copper | 7.0% | PASS |
+| Lithium | 6.0% | PASS |
 
 ---
 
