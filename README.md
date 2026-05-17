@@ -10,6 +10,21 @@
 
 予測精度の推移・PDCAサイクルによる自律改善・予測 vs 実績の比較をリアルタイムで確認できる。毎時 GitHub Actions により自動更新。
 
+**ダッシュボード搭載機能:**
+- 銘柄ごとのバックテスト精度（MAPE）バーグラフ（5銘柄 / 合格4銘柄）
+- 予測 vs 実績の時系列チャート（銘柄タブ切り替え対応）
+- PDCAサイクルによる自律改善ログの表示
+
+**バックテスト結果（2026-05-12 実施）:**
+
+| 銘柄 | 平均MAPE | 判定 |
+|------|---------|------|
+| Wheat | 3.33% | PASS |
+| Corn | 6.08% | PASS |
+| Copper | 8.39% | PASS |
+| Lithium | 7.64% | PASS |
+| Naphtha | 10.92% | FAIL |
+
 ---
 
 ## システム全体フロー
@@ -317,6 +332,7 @@ S-SCA/
 │   ├── base.py                   # BaseEvaluator / EvaluationResult
 │   ├── accuracy.py               # MAPE 採点（AccuracyEvaluator）
 │   ├── multi_factor.py           # 多角的評価（方向/VIX補正/外部ショック/完全性）
+│   ├── backtest.py               # バックテスト（スライディングウィンドウ・14日先予測）
 │   └── llm_judge.py              # Claude Haiku によるパラメータ改善提案
 │
 ├── .claude/                      # Claude Code エージェント定義
@@ -333,6 +349,7 @@ S-SCA/
 │       └── data_quality.md       # データ品質規約（最低レコード数・欠損値の扱い）
 │
 ├── scripts/                      # 運用スクリプト（本番パイプライン外）
+│   ├── run_backtest.py           # バックテスト実行スクリプト（結果を Discord 通知 + JSON 保存）
 │   ├── post_note.sh              # note.com への手動入稿スクリプト
 │   └── setup_launchd.sh          # macOS launchd による定期実行セットアップ
 │
@@ -415,6 +432,24 @@ Claude API の呼び出しは **2箇所のみ** に限定：
 - `evaluators/llm_judge.py`：誤差分析・パラメータ改善提案（FAILのみ）
 
 予測計算は Prophet がローカルで完結。月間コスト目安：**Haiku で $1 未満**。
+
+---
+
+## バックテスト
+
+90日分の過去データを使ったスライディングウィンドウで14日先予測を検証する。結果は `docs/data/backtest_results.json` に保存され、ダッシュボードに自動反映される。
+
+```bash
+python scripts/run_backtest.py
+```
+
+| 銘柄 | 平均MAPE | 合否（< 10%） |
+|------|---------|-------------|
+| Wheat | 3.33% | PASS |
+| Corn | 6.08% | PASS |
+| Copper | 8.39% | PASS |
+| Lithium | 7.64% | PASS |
+| Naphtha | 10.92% | FAIL |
 
 ---
 
