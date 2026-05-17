@@ -1,6 +1,6 @@
 # Sentient Supply-Chain Agent（S-SCA）
 
-世界の物流遅延・地政学リスクを先行指標として、レアメタル・穀物の **14日後の価格を予測** し、仕入れアラートを Discord / X に毎日19:00 JST に自律投稿する AI エージェント・システム。
+世界の物流遅延・地政学リスクを先行指標として、レアメタル・穀物の **14日後の価格を予測** し、仕入れアラートを Discord に毎日19:00 JST に自律投稿する AI エージェント・システム。
 
 24時間放置しても GitHub Actions が毎時自動実行し、予測・投稿・自己改善を繰り返す。
 
@@ -55,7 +55,7 @@ Scout × 4         Oracle        Merchant → evaluators → LLM Judge
 | 収集 | `scout_geopolitical` | VIX / Gold / Oil / DXY / NatGas / ChinaETF / Brent（yfinance） |
 | 収集 | `scout_news` | 各銘柄の最新ニュースを `news_log` に保存 |
 | **P** | `oracle` | Prophet ＋ 外生変数 8本 で 14日後を予測し `prediction_log` に保存 |
-| **D** | `merchant` | Claude Haiku で投稿文生成 → 毎日19:00 JST に Discord / X 投稿 |
+| **D** | `merchant` | Claude Haiku で投稿文生成 → 毎日19:00 JST に Discord 投稿 |
 | **D+** | `affiliate_writer` | 予測が閾値（+5%）超えたとき note.com にアフィリエイト記事を自動入稿 |
 | **C** | `evaluators/accuracy` | 14日前の予測 vs 実績を MAPE で採点 |
 | **A** | `evaluators/llm_judge` | Claude Haiku が誤差原因を分析し、改善パラメータを `feedback_log` に保存 |
@@ -107,7 +107,7 @@ prediction_log から当日の予測を取得
 Claude Haiku（claude-haiku-4-5-20251001）に投稿文生成を依頼
         │
         ├─► Discord Webhook に投稿（リトライ最大3回）
-        └─► X API に投稿（API キー未設定なら自動スキップ）
+        └─► X API（未設定のため現在スキップ）
 ```
 
 ---
@@ -192,7 +192,7 @@ needs_improvement = True の銘柄だけ処理
   │                                                                 │
   │  ┌──────────┐   予測保存   ┌──────────┐   投稿      ┌────────┐ │
   │  │  P: Oracle│ ──────────► │ D: Merchant│ ──────────►│Discord│ │
-  │  │  (Prophet)│             │(Claude Haiku)│           │  / X  │ │
+  │  │  (Prophet)│             │(Claude Haiku)│           │Discord│ │
   │  └──────────┘             └──────────┘             └────────┘ │
   │       ▲                                                         │
   │       │ パラメータ                      14日後に実績が出たら    │
@@ -233,7 +233,7 @@ needs_improvement = True の銘柄だけ処理
 | DB | Supabase（PostgreSQL） | 無料枠 500MB、REST API 完備 |
 | 自動実行 | GitHub Actions | 毎時 cron、無料枠 2,000分/月 |
 | AI | Claude Haiku | 投稿文生成・誤差分析の 2 箇所のみ（コスト最小化） |
-| 通知 | Discord Webhook / X API | 毎日19:00 JST のみ投稿 |
+| 通知 | Discord Webhook | 毎日19:00 JST のみ投稿 |
 
 ---
 
@@ -280,7 +280,7 @@ python -m src.agents.scout_price        # 価格収集（Wheat/Corn/Naphtha/Copp
 python -m src.agents.scout_logistics    # 物流指標収集（BDRY ETF）
 python -m src.agents.scout_geopolitical # 地政学リスク収集（VIX/Gold/Oil/DXY/NatGas/ChinaETF/Brent）
 python -m src.agents.oracle             # Prophet 予測（14日後・外生変数8本）
-python -m src.agents.merchant           # 投稿文生成 → Discord/X（19:00 JST のみ）
+python -m src.agents.merchant           # 投稿文生成 → Discord（19:00 JST のみ）
 ```
 
 ---
@@ -312,7 +312,7 @@ S-SCA/
 │   │   ├── scout_geopolitical.py # 地政学リスク（VIX/Gold/Oil/DXY/NatGas/ChinaETF/Brent）
 │   │   ├── scout_news.py         # ニュース収集 → news_log
 │   │   ├── oracle.py             # Prophet 予測（外生変数8本）
-│   │   └── merchant.py           # Claude Haiku + Discord/X 投稿（19:00 JST限定）
+│   │   └── merchant.py           # Claude Haiku + Discord 投稿（19:00 JST限定）
 │   ├── models/
 │   │   └── prophet_wrapper.py    # Prophet 共通ラッパー（z-score正規化・サニティチェック）
 │   └── utils/
