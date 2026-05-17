@@ -1,188 +1,188 @@
 {
-  "run_at": "2026-05-12",
+  "run_at": "2026-05-17",
   "results": [
     {
       "symbol": "Wheat",
       "status": "ok",
-      "avg_mape": 3.33,
+      "avg_mape": 4.74,
       "windows": 4,
       "passed": true,
       "details": [
         {
-          "anchor_date": "2026-03-26",
-          "target_date": "2026-04-16",
-          "predicted": 599.8892,
-          "actual": 598.5,
-          "mape": 0.23
+          "anchor_date": "2026-03-31",
+          "target_date": "2026-04-21",
+          "predicted": 604.3014,
+          "actual": 605.0,
+          "mape": 0.12
         },
         {
-          "anchor_date": "2026-04-07",
-          "target_date": "2026-04-26",
-          "predicted": 606.9485,
-          "actual": 614.8182,
-          "mape": 1.28
+          "anchor_date": "2026-04-10",
+          "target_date": "2026-04-29",
+          "predicted": 588.7981,
+          "actual": 657.3409,
+          "mape": 10.43
         },
         {
-          "anchor_date": "2026-04-16",
-          "target_date": "2026-05-03",
-          "predicted": 567.9385,
-          "actual": 636.0938,
-          "mape": 10.71
+          "anchor_date": "2026-04-21",
+          "target_date": "2026-05-06",
+          "predicted": 582.6851,
+          "actual": 617.2955,
+          "mape": 5.61
         },
         {
-          "anchor_date": "2026-04-26",
-          "target_date": "2026-05-10",
-          "predicted": 611.4992,
-          "actual": 618.2333,
-          "mape": 1.09
+          "anchor_date": "2026-04-29",
+          "target_date": "2026-05-13",
+          "predicted": 655.9766,
+          "actual": 674.7,
+          "mape": 2.78
         }
       ]
     },
     {
       "symbol": "Corn",
       "status": "ok",
-      "avg_mape": 6.08,
+      "avg_mape": 4.38,
       "windows": 4,
       "passed": true,
       "details": [
         {
-          "anchor_date": "2026-03-26",
-          "target_date": "2026-04-16",
-          "predicted": 482.2686,
-          "actual": 448.5,
-          "mape": 7.53
+          "anchor_date": "2026-03-31",
+          "target_date": "2026-04-21",
+          "predicted": 455.2037,
+          "actual": 453.75,
+          "mape": 0.32
         },
         {
-          "anchor_date": "2026-04-07",
-          "target_date": "2026-04-26",
-          "predicted": 438.3062,
-          "actual": 461.5682,
-          "mape": 5.04
+          "anchor_date": "2026-04-10",
+          "target_date": "2026-04-29",
+          "predicted": 431.9517,
+          "actual": 477.1458,
+          "mape": 9.47
         },
         {
-          "anchor_date": "2026-04-16",
-          "target_date": "2026-05-03",
-          "predicted": 428.7833,
-          "actual": 478.75,
-          "mape": 10.44
+          "anchor_date": "2026-04-21",
+          "target_date": "2026-05-06",
+          "predicted": 443.8561,
+          "actual": 471.0909,
+          "mape": 5.78
         },
         {
-          "anchor_date": "2026-04-26",
-          "target_date": "2026-05-10",
-          "predicted": 464.0743,
-          "actual": 470.25,
-          "mape": 1.31
+          "anchor_date": "2026-04-29",
+          "target_date": "2026-05-13",
+          "predicted": 489.3659,
+          "actual": 480.1,
+          "mape": 1.93
         }
       ]
     },
     {
       "symbol": "Naphtha",
       "status": "ok",
-      "avg_mape": 10.92,
+      "avg_mape": 8.02,
       "windows": 4,
-      "passed": false,
+      "passed": true,
       "details": [
         {
-          "anchor_date": "2026-03-26",
-          "target_date": "2026-04-16",
-          "predicted": 3.7962,
-          "actual": 3.1637,
-          "mape": 19.99
+          "anchor_date": "2026-03-31",
+          "target_date": "2026-04-21",
+          "predicted": 3.6911,
+          "actual": 3.2098,
+          "mape": 14.99
         },
         {
-          "anchor_date": "2026-04-07",
-          "target_date": "2026-04-26",
-          "predicted": 3.7585,
-          "actual": 3.3332,
-          "mape": 12.76
+          "anchor_date": "2026-04-10",
+          "target_date": "2026-04-29",
+          "predicted": 3.3732,
+          "actual": 3.5436,
+          "mape": 4.81
         },
         {
-          "anchor_date": "2026-04-16",
-          "target_date": "2026-05-03",
-          "predicted": 3.2218,
-          "actual": 3.5955,
-          "mape": 10.39
+          "anchor_date": "2026-04-21",
+          "target_date": "2026-05-06",
+          "predicted": 3.0584,
+          "actual": 3.378,
+          "mape": 9.46
         },
         {
-          "anchor_date": "2026-04-26",
-          "target_date": "2026-05-10",
-          "predicted": 3.3977,
-          "actual": 3.3795,
-          "mape": 0.54
+          "anchor_date": "2026-04-29",
+          "target_date": "2026-05-13",
+          "predicted": 3.3917,
+          "actual": 3.4895,
+          "mape": 2.8
         }
       ]
     },
     {
       "symbol": "Copper",
       "status": "ok",
-      "avg_mape": 8.39,
+      "avg_mape": 6.98,
       "windows": 4,
       "passed": true,
       "details": [
         {
-          "anchor_date": "2026-03-26",
-          "target_date": "2026-04-16",
-          "predicted": 5.0629,
-          "actual": 6.0665,
-          "mape": 16.54
+          "anchor_date": "2026-03-31",
+          "target_date": "2026-04-21",
+          "predicted": 5.0986,
+          "actual": 6.0015,
+          "mape": 15.05
         },
         {
-          "anchor_date": "2026-04-07",
-          "target_date": "2026-04-26",
-          "predicted": 5.6278,
-          "actual": 6.0251,
-          "mape": 6.59
+          "anchor_date": "2026-04-10",
+          "target_date": "2026-04-29",
+          "predicted": 5.8195,
+          "actual": 5.9663,
+          "mape": 2.46
         },
         {
-          "anchor_date": "2026-04-16",
-          "target_date": "2026-05-03",
-          "predicted": 6.4334,
-          "actual": 5.9811,
-          "mape": 7.56
+          "anchor_date": "2026-04-21",
+          "target_date": "2026-05-06",
+          "predicted": 6.627,
+          "actual": 6.161,
+          "mape": 7.57
         },
         {
-          "anchor_date": "2026-04-26",
-          "target_date": "2026-05-10",
-          "predicted": 6.4715,
-          "actual": 6.2915,
-          "mape": 2.86
+          "anchor_date": "2026-04-29",
+          "target_date": "2026-05-13",
+          "predicted": 6.4476,
+          "actual": 6.6368,
+          "mape": 2.85
         }
       ]
     },
     {
       "symbol": "Lithium",
       "status": "ok",
-      "avg_mape": 7.64,
+      "avg_mape": 6.04,
       "windows": 4,
       "passed": true,
       "details": [
         {
-          "anchor_date": "2026-03-26",
-          "target_date": "2026-04-16",
-          "predicted": 67.7233,
-          "actual": 82.31,
-          "mape": 17.72
+          "anchor_date": "2026-03-31",
+          "target_date": "2026-04-21",
+          "predicted": 71.4359,
+          "actual": 83.03,
+          "mape": 13.96
         },
         {
-          "anchor_date": "2026-04-07",
-          "target_date": "2026-04-26",
-          "predicted": 76.9545,
-          "actual": 83.79,
-          "mape": 8.16
+          "anchor_date": "2026-04-10",
+          "target_date": "2026-04-29",
+          "predicted": 78.0504,
+          "actual": 84.5405,
+          "mape": 7.68
         },
         {
-          "anchor_date": "2026-04-16",
-          "target_date": "2026-05-03",
-          "predicted": 85.2094,
-          "actual": 88.72,
-          "mape": 3.96
+          "anchor_date": "2026-04-21",
+          "target_date": "2026-05-06",
+          "predicted": 90.7542,
+          "actual": 90.2796,
+          "mape": 0.53
         },
         {
-          "anchor_date": "2026-04-26",
-          "target_date": "2026-05-10",
-          "predicted": 90.8402,
-          "actual": 90.17,
-          "mape": 0.74
+          "anchor_date": "2026-04-29",
+          "target_date": "2026-05-13",
+          "predicted": 91.2973,
+          "actual": 89.5315,
+          "mape": 1.97
         }
       ]
     }
