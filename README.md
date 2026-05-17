@@ -249,10 +249,7 @@ pip install -r requirements.txt
 
 ### 2. 環境変数の設定
 
-```bash
-cp .env.example .env
-# .env を開いて各キーを入力する
-```
+プロジェクトルートに `.env` を作成し、以下のキーを入力する。
 
 | 変数名 | 取得先 |
 |--------|--------|
@@ -355,11 +352,6 @@ S-SCA/
 │
 ├── themes.md                     # note 投稿テーマキュー（チェックリスト形式）
 │
-├── tests/
-│   ├── test_scout_price.py
-│   ├── test_oracle.py
-│   └── test_database.py
-│
 └── data/
     └── note-drafts/              # note 記事ドラフト（Markdown）
 ```
@@ -450,15 +442,6 @@ python scripts/run_backtest.py
 | Copper | 8.39% | PASS |
 | Lithium | 7.64% | PASS |
 | Naphtha | 10.92% | FAIL |
-
----
-
-## テスト
-
-```bash
-pytest tests/ -v
-pytest tests/test_oracle.py -v   # 単一ファイル指定
-```
 
 ---
 
