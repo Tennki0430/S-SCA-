@@ -506,11 +506,12 @@ def run() -> None:
             # 全商品が検索URL（/s?k=）の場合は OGP カードが出ないため警告通知
             search_only = all("/s?" in url for _, url in products)
             if search_only:
-                _notify_discord_error(
-                    symbol,
-                    "全商品が検索URLにフォールバックしました（OGPカード非対応）",
-                    "config/amazon_links.yaml に /dp/ASIN/ 形式のURLを設定すると改善されます",
-                )
+                pass
+                # _notify_discord_error(
+                #     symbol,
+                #     "全商品が検索URLにフォールバックしました（OGPカード非対応）",
+                #     "config/amazon_links.yaml に /dp/ASIN/ 形式のURLを設定すると改善されます",
+                # )
 
             # Claude Haiku でタイトル・本文・X短文を生成
             title, note_body, x_text = _generate_texts(
@@ -519,7 +520,7 @@ def run() -> None:
 
             if not title:
                 logger.warning("[%s] タイトル生成失敗。スキップ。", symbol)
-                _notify_discord_error(symbol, "Claude Haiku によるタイトル生成に失敗しました", "記事がスキップされました")
+                # _notify_discord_error(symbol, "Claude Haiku によるタイトル生成に失敗しました", "記事がスキップされました")
                 continue
 
             # Amazon リンク付き Markdown 下書きを保存
@@ -544,8 +545,8 @@ def run() -> None:
             # themes.md に追加（note-publisher エージェントがピックアップ）
             _queue_to_themes(title, symbol, change_pct, target_date, draft_path)
 
-            # Discord 通知
-            _notify_discord(symbol, change_pct, title, draft_path, campaign_id)
+            # Discord 通知（停止中）
+            # _notify_discord(symbol, change_pct, title, draft_path, campaign_id)
 
             # X 短文アラート（記事下書きへの誘導）
             _post_x(x_text)
@@ -554,7 +555,7 @@ def run() -> None:
 
         except Exception as e:
             logger.error("[%s] Affiliate Writer 処理失敗: %s", symbol, e)
-            _notify_discord_error(symbol, str(e), "Affiliate Writer の処理中に予期しないエラーが発生しました")
+            # _notify_discord_error(symbol, str(e), "Affiliate Writer の処理中に予期しないエラーが発生しました")
 
     logger.info("=== Affiliate Writer Agent 完了 ===")
 

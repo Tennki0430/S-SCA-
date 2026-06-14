@@ -87,7 +87,7 @@ class PipelineRunner:
         logger.info("=== 精度照合（Check）開始 ===")
         results = self.reporter.evaluate_and_save()
         logger.info("=== 精度照合 完了（%d 件照合） ===", len(results))
-        _notify_accuracy_results(results)
+        # _notify_accuracy_results(results)
 
         # --- A: Act（自律改善） ---
         # needs_improvement=True の銘柄（MAPE不合格 OR 方向誤り）に対してのみ分析を実行
