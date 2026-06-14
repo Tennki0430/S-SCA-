@@ -143,14 +143,14 @@ def run() -> None:
                 prophet_params=pred.get("prophet_params"),
             )
 
-            direction = "🔺" if change_pct > 0 else "🔻"
-            discord_msg = (
-                f"**【S-SCA アラート】{symbol}**\n"
-                f"{direction} 現在: ${current:.2f} → 14日後予測: ${predicted:.2f} ({change_pct:+.1f}%)\n\n"
-                f"{reasoning}"
-            )
-            _post_discord(discord_msg)
-            logger.info("[%s] Discord 投稿完了", symbol)
+            # direction = "🔺" if change_pct > 0 else "🔻"
+            # discord_msg = (
+            #     f"**【S-SCA アラート】{symbol}**\n"
+            #     f"{direction} 現在: ${current:.2f} → 14日後予測: ${predicted:.2f} ({change_pct:+.1f}%)\n\n"
+            #     f"{reasoning}"
+            # )
+            # _post_discord(discord_msg)
+            # logger.info("[%s] Discord 投稿完了", symbol)
 
             x_text = _parse_x_post(reasoning)
             _post_x(x_text)
